@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  director
+  chief_technician
+  technician
+  superadmin
+}
+
+enum RequestStatus {
+  new
+  in_progress
+  completed_by_technician
+  approved_by_chief_technician
+  accepted_by_director
+  closed
+}
+
+enum Priority {
+  low
+  medium
+  high
+  critical
+}
+
+enum Category {
+  electrical
+  plumbing
+  ac
+  kitchen_equipment
+  it_equipment
+  furniture
+  other
+}
+
+enum NotificationType {
+  request_created
+  technician_assigned
+  technician_completed
+  chief_approved
+  request_closed
+}
+
+model Branch {
+  id        String    @id @default(uuid())
+  name      String
+  address   String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  users     User[]
+  requests  Request[]
+
+  @@map("branches")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  telegramId  String   @unique @map("telegram_id")
+  username    String?
+  fullName    String   @map("full_name")
+  role        Role
+  branchId    String?  @map("branch_id")
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  createdRequests      Request[] @relation("CreatedBy")
+  chiefTechnicianTasks Request[] @relation("ChiefTechnician")
+  technicianTasks      Request[] @relation("Technician")
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+
+  @@map("users")
+}
+
+model Request {
+  id                  String        @id @default(uuid())
+  branchId            String        @map("branch_id")
+  branch              Branch        @relation(fields: [branchId], references: [id])
+
+  createdById         String        @map("created_by")
+  createdBy           User          @relation("CreatedBy", fields: [createdById], references: [id])
+
+  chiefTechnicianId   String?       @map("chief_technician_id")
+  chiefTechnician     User?         @relation("ChiefTechnician", fields: [chiefTechnicianId], references: [id])
+
+  technicianId        String?       @map("technician_id")
+  technician          User?         @relation("Technician", fields: [technicianId], references: [id])
+
+  category            Category
+  description         String
+  priority            Priority
+  status              RequestStatus @default(new)
+
+  beforePhotoUrl      String        @map("before_photo_url")
+  afterPhotoUrl       String?       @map("after_photo_url")
+
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  closedAt            DateTime?     @map("closed_at")
+
+  statusHistory       RequestStatusHistory[]
+  notifications       Notification[]
+
+  @@index([branchId])
+  @@index([status])
+  @@index([technicianId])
+  @@index([chiefTechnicianId])
+  @@map("requests")
+}
+
+model RequestStatusHistory {
+  id          String        @id @default(uuid())
+  requestId   String        @map("request_id")
+  request     Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fromStatus  RequestStatus? @map("from_status")
+  toStatus    RequestStatus  @map("to_status")
+  changedById String        @map("changed_by")
+  changedAt   DateTime      @default(now()) @map("changed_at")
+
+  @@map("request_status_history")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  action      String
+  performedById String @map("performed_by")
+  performedBy User     @relation(fields: [performedById], references: [id])
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id         String            @id @default(uuid())
+  userId     String            @map("user_id")
+  user       User              @relation(fields: [userId], references: [id])
+  requestId  String?           @map("request_id")
+  request    Request?          @relation(fields: [requestId], references: [id])
+  type       NotificationType
+  text       String
+  isRead     Boolean           @default(false) @map("is_read")
+  sentAt     DateTime          @default(now()) @map("sent_at")
+
+  @@map("notifications")
+}

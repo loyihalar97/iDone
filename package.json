@@ -1,0 +1,22 @@
+{
+  "name": "texnik-xizmat-mini-app",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "dev:bot": "npm run dev --workspace=apps/bot",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "prisma:generate": "npm run prisma:generate --workspace=apps/backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=apps/backend",
+    "prisma:seed": "npm run prisma:seed --workspace=apps/backend"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

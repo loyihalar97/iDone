@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: texnik_xizmat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/texnik_xizmat
+      JWT_SECRET: dev_secret_change_me
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      BOT_INTERNAL_URL: http://bot:4100
+      BOT_INTERNAL_SECRET: dev_internal_secret
+      STORAGE_DRIVER: local
+      PUBLIC_BASE_URL: http://localhost:4000
+      FRONTEND_ORIGIN: http://localhost:5173
+    ports:
+      - "4000:4000"
+    volumes:
+      - uploads_data:/app/uploads
+
+  bot:
+    build:
+      context: .
+      dockerfile: apps/bot/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4100
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      MINI_APP_URL: ${MINI_APP_URL:-http://localhost:5173}
+      INTERNAL_SECRET: dev_internal_secret
+      USE_WEBHOOK: "false"
+    ports:
+      - "4100:4100"
+
+volumes:
+  postgres_data:
+  uploads_data:

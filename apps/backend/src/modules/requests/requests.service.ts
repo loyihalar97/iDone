@@ -1,0 +1,242 @@
+import { NotificationType, RequestStatus, Role } from "@app/shared-types";
+import { RequestStatus as PrismaRequestStatus } from "@prisma/client";
+import { AppError } from "../../core/errors/AppError";
+import { prisma } from "../../core/database/prisma";
+import { requestsRepository, RequestFilters } from "./requests.repository";
+import { assertValidTransition, shouldAutoClose } from "./requests.state-machine";
+import { auditLogService } from "../audit-log/audit-log.service";
+import { notificationsService } from "../notifications/notifications.service";
+import type { AuthTokenPayload } from "../auth/auth.service";
+
+interface CreateRequestInput {
+  branchId: string;
+  chiefTechnicianId?: string;
+  category: string;
+  description: string;
+  priority: string;
+  beforePhotoUrl: string;
+}
+
+export const requestsService = {
+  async create(input: CreateRequestInput, actor: AuthTokenPayload) {
+    if (actor.role !== Role.DIRECTOR && actor.role !== Role.SUPERADMIN) {
+      throw AppError.forbidden("Faqat filial direktori zayavka yarata oladi");
+    }
+
+    const request = await requestsRepository.create({
+      branchId: input.branchId,
+      createdById: actor.userId,
+      chiefTechnicianId: input.chiefTechnicianId,
+      category: input.category as any,
+      description: input.description,
+      priority: input.priority as any,
+      beforePhotoUrl: input.beforePhotoUrl,
+      status: PrismaRequestStatus.new,
+    });
+
+    await requestsRepository.addStatusHistory(request.id, null, PrismaRequestStatus.new, actor.userId);
+
+    await auditLogService.log({
+      entityType: "request",
+      entityId: request.id,
+      action: "created",
+      performedById: actor.userId,
+      metadata: { branchId: input.branchId, priority: input.priority },
+    });
+
+    // Bosh texnikka bildirishnoma
+    const chiefTechnicians = request.chiefTechnicianId
+      ? [request.chiefTechnician]
+      : await prisma.user.findMany({ where: { role: Role.CHIEF_TECHNICIAN, isActive: true } });
+
+    for (const ct of chiefTechnicians) {
+      if (!ct) continue;
+      await notificationsService.notify({
+        userId: ct.id,
+        requestId: request.id,
+        type: NotificationType.REQUEST_CREATED,
+        text: `🆕 Yangi zayavka: ${request.branch.name} filialida "${request.category}" bo'yicha muammo. Muhimlik: ${request.priority}.`,
+      });
+    }
+
+    return request;
+  },
+
+  async getById(id: string, actor: AuthTokenPayload) {
+    const request = await requestsRepository.findById(id);
+    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    await this.assertCanView(request, actor);
+    return request;
+  },
+
+  async list(filters: RequestFilters, page: number, pageSize: number, actor: AuthTokenPayload) {
+    // Rol asosida ko'rish doirasini cheklash
+    if (actor.role === Role.DIRECTOR) {
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
+      filters.branchId = user.branchId ?? "__none__";
+    } else if (actor.role === Role.TECHNICIAN) {
+      filters.technicianId = actor.userId;
+    }
+    // chief_technician va superadmin — barcha filiallarni ko'radi
+
+    const skip = (page - 1) * pageSize;
+    const [items, total] = await requestsRepository.findMany(filters, skip, pageSize);
+    return { items, total, page, pageSize };
+  },
+
+  async assignTechnician(requestId: string, technicianId: string, actor: AuthTokenPayload) {
+    if (actor.role !== Role.CHIEF_TECHNICIAN && actor.role !== Role.SUPERADMIN) {
+      throw AppError.forbidden("Faqat Bosh texnik texnik biriktira oladi");
+    }
+    const request = await requestsRepository.findById(requestId);
+    if (!request) throw AppError.notFound("Zayavka topilmadi");
+
+    const technician = await prisma.user.findUnique({ where: { id: technicianId } });
+    if (!technician || technician.role !== Role.TECHNICIAN) {
+      throw AppError.validation("Ko'rsatilgan foydalanuvchi texnik emas");
+    }
+
+    const updated = await requestsRepository.assignTechnician(requestId, technicianId);
+
+    await auditLogService.log({
+      entityType: "request",
+      entityId: requestId,
+      action: "technician_assigned",
+      performedById: actor.userId,
+      metadata: { technicianId },
+    });
+
+    await notificationsService.notify({
+      userId: technicianId,
+      requestId,
+      type: NotificationType.TECHNICIAN_ASSIGNED,
+      text: `🔧 Sizga yangi zayavka biriktirildi: ${updated.branch.name} filiali, "${updated.category}".`,
+    });
+
+    return updated;
+  },
+
+  async changeStatus(
+    requestId: string,
+    nextStatus: RequestStatus,
+    actor: AuthTokenPayload,
+    afterPhotoUrl?: string
+  ) {
+    const request = await requestsRepository.findById(requestId);
+    if (!request) throw AppError.notFound("Zayavka topilmadi");
+
+    await this.assertCanActOnRequest(request, actor);
+
+    assertValidTransition(request.status as RequestStatus, nextStatus, actor.role);
+
+    if (nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN && !afterPhotoUrl && !request.afterPhotoUrl) {
+      throw AppError.validation("Ish yakunlangandan keyingi natija rasmi majburiy");
+    }
+
+    const willAutoClose = shouldAutoClose(nextStatus);
+
+    const updated = await requestsRepository.updateStatus(
+      requestId,
+      nextStatus as PrismaRequestStatus,
+      {
+        afterPhotoUrl: afterPhotoUrl ?? request.afterPhotoUrl ?? undefined,
+        ...(willAutoClose ? { closedAt: new Date() } : {}),
+      }
+    );
+
+    await requestsRepository.addStatusHistory(
+      requestId,
+      request.status,
+      nextStatus as PrismaRequestStatus,
+      actor.userId
+    );
+
+    let finalRequest = updated;
+    if (willAutoClose) {
+      finalRequest = await requestsRepository.updateStatus(requestId, PrismaRequestStatus.closed);
+      await requestsRepository.addStatusHistory(
+        requestId,
+        RequestStatus.ACCEPTED_BY_DIRECTOR as PrismaRequestStatus,
+        PrismaRequestStatus.closed,
+        actor.userId
+      );
+    }
+
+    await auditLogService.log({
+      entityType: "request",
+      entityId: requestId,
+      action: `status_changed_to_${nextStatus}`,
+      performedById: actor.userId,
+    });
+
+    await this.notifyOnStatusChange(finalRequest, nextStatus);
+
+    return finalRequest;
+  },
+
+  async notifyOnStatusChange(request: Awaited<ReturnType<typeof requestsRepository.findById>>, nextStatus: RequestStatus) {
+    if (!request) return;
+
+    if (nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN && request.chiefTechnicianId) {
+      await notificationsService.notify({
+        userId: request.chiefTechnicianId,
+        requestId: request.id,
+        type: NotificationType.TECHNICIAN_COMPLETED,
+        text: `✅ Texnik ishni yakunladi: ${request.branch.name}, "${request.category}". Tasdiqlashingiz kerak.`,
+      });
+    }
+
+    if (nextStatus === RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN) {
+      await notificationsService.notify({
+        userId: request.createdById,
+        requestId: request.id,
+        type: NotificationType.CHIEF_APPROVED,
+        text: `👍 Bosh texnik ishni tasdiqladi: ${request.branch.name}, "${request.category}". Qabul qilishingiz kerak.`,
+      });
+    }
+
+    if (nextStatus === RequestStatus.ACCEPTED_BY_DIRECTOR) {
+      const recipients = [request.createdById, request.chiefTechnicianId, request.technicianId].filter(
+        (id): id is string => !!id
+      );
+      for (const userId of recipients) {
+        await notificationsService.notify({
+          userId,
+          requestId: request.id,
+          type: NotificationType.REQUEST_CLOSED,
+          text: `🔒 Zayavka yopildi: ${request.branch.name}, "${request.category}".`,
+        });
+      }
+    }
+  },
+
+  async assertCanView(request: NonNullable<Awaited<ReturnType<typeof requestsRepository.findById>>>, actor: AuthTokenPayload) {
+    if (actor.role === Role.SUPERADMIN || actor.role === Role.CHIEF_TECHNICIAN) return;
+    if (actor.role === Role.DIRECTOR) {
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
+      if (request.branchId !== user.branchId) {
+        throw AppError.forbidden("Bu zayavka boshqa filialga tegishli");
+      }
+      return;
+    }
+    if (actor.role === Role.TECHNICIAN) {
+      if (request.technicianId !== actor.userId) {
+        throw AppError.forbidden("Bu zayavka sizga biriktirilmagan");
+      }
+      return;
+    }
+  },
+
+  async assertCanActOnRequest(request: NonNullable<Awaited<ReturnType<typeof requestsRepository.findById>>>, actor: AuthTokenPayload) {
+    await this.assertCanView(request, actor);
+    if (actor.role === Role.TECHNICIAN && request.technicianId !== actor.userId) {
+      throw AppError.forbidden("Bu zayavka sizga biriktirilmagan");
+    }
+    if (actor.role === Role.DIRECTOR && request.createdById !== actor.userId) {
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
+      if (request.branchId !== user.branchId) {
+        throw AppError.forbidden("Bu zayavka sizning filialingizga tegishli emas");
+      }
+    }
+  },
+};
