@@ -9,6 +9,7 @@ export function notFoundHandler(req: Request, res: Response) {
 
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ZodError) {
+    logger.warn({ path: req.path, body: req.body, details: err.flatten() }, "Validation error");
     return res.status(422).json({
       error: {
         code: "VALIDATION_ERROR",
