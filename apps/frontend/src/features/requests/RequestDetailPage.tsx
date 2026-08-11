@@ -60,9 +60,7 @@ export function RequestDetailPage() {
   const canStart =
     (user?.role === Role.TECHNICIAN || user?.role === Role.CHIEF_TECHNICIAN) &&
     request.status === RequestStatus.NEW;
-  const canComplete = user?.role === Role.TECHNICIAN && request.status === RequestStatus.IN_PROGRESS;
-  const canChiefApprove =
-    user?.role === Role.CHIEF_TECHNICIAN && request.status === RequestStatus.COMPLETED_BY_TECHNICIAN;
+  const canComplete = user?.role === Role.CHIEF_TECHNICIAN && request.status === RequestStatus.IN_PROGRESS;
   const canDirectorAccept =
     user?.role === Role.DIRECTOR && request.status === RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN;
 
@@ -139,15 +137,9 @@ export function RequestDetailPage() {
             disabled={!afterFile || statusMutation.isPending}
             onClick={() => statusMutation.mutate(RequestStatus.COMPLETED_BY_TECHNICIAN)}
           >
-            {statusMutation.isPending ? "Yuborilmoqda..." : "Bajarildi"}
+            {statusMutation.isPending ? "Yuborilmoqda..." : "Tugatildi"}
           </Button>
         </Card>
-      )}
-
-      {canChiefApprove && (
-        <Button className="w-full" onClick={() => statusMutation.mutate(RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN)}>
-          Tasdiqlash
-        </Button>
       )}
 
       {canDirectorAccept && (
