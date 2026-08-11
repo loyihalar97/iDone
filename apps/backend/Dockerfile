@@ -1,5 +1,6 @@
 # ---- Build stage ----
 FROM node:20-alpine AS build
+RUN apk add --no-cache openssl
 WORKDIR /repo
 
 COPY package.json ./
