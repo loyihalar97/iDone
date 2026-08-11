@@ -18,8 +18,6 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
 
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
-  botInternalUrl: process.env.BOT_INTERNAL_URL ?? "http://localhost:4100",
-  botInternalSecret: process.env.BOT_INTERNAL_SECRET ?? "",
 
   storageDriver: (process.env.STORAGE_DRIVER ?? "local") as "local" | "supabase" | "cloudinary",
   localUploadDir: process.env.LOCAL_UPLOAD_DIR ?? "uploads",
