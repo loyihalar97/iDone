@@ -14,13 +14,25 @@ function startOfMonth() {
   return d;
 }
 
+export interface DashboardScope {
+  branchId?: string;
+  technicianId?: string;
+}
+
 export const dashboardService = {
-  async getStats() {
+  async getStats(scope: DashboardScope = {}) {
+    const scopeWhere = {
+      ...(scope.branchId ? { branchId: scope.branchId } : {}),
+      ...(scope.technicianId ? { technicianId: scope.technicianId } : {}),
+    };
+    const isScoped = !!scope.branchId || !!scope.technicianId;
+
     const [openCount, inProgressCount, closedTodayCount, closedThisMonthCount, closedRequests, branchGroups, technicianGroups] =
       await Promise.all([
-        prisma.request.count({ where: { status: RequestStatus.NEW as any } }),
+        prisma.request.count({ where: { ...scopeWhere, status: RequestStatus.NEW as any } }),
         prisma.request.count({
           where: {
+            ...scopeWhere,
             status: {
               in: [
                 RequestStatus.IN_PROGRESS,
@@ -31,30 +43,36 @@ export const dashboardService = {
           },
         }),
         prisma.request.count({
-          where: { status: RequestStatus.CLOSED as any, closedAt: { gte: startOfToday() } },
+          where: { ...scopeWhere, status: RequestStatus.CLOSED as any, closedAt: { gte: startOfToday() } },
         }),
         prisma.request.count({
-          where: { status: RequestStatus.CLOSED as any, closedAt: { gte: startOfMonth() } },
+          where: { ...scopeWhere, status: RequestStatus.CLOSED as any, closedAt: { gte: startOfMonth() } },
         }),
         prisma.request.findMany({
-          where: { status: RequestStatus.CLOSED as any, closedAt: { not: null } },
+          where: { ...scopeWhere, status: RequestStatus.CLOSED as any, closedAt: { not: null } },
           select: { createdAt: true, closedAt: true },
           take: 500,
           orderBy: { closedAt: "desc" },
         }),
-        prisma.request.groupBy({
-          by: ["branchId"],
-          _count: { _all: true },
-          orderBy: { _count: { branchId: "desc" } },
-          take: 5,
-        }),
-        prisma.request.groupBy({
-          by: ["technicianId"],
-          _count: { _all: true },
-          where: { technicianId: { not: null } },
-          orderBy: { _count: { technicianId: "desc" } },
-          take: 5,
-        }),
+        // Filial va texnik bo'yicha taqsimot faqat umumiy (scope'lanmagan) ko'rinishda mantiqli —
+        // shaxsiy ko'rinishda (direktor/texnik) bu ro'yxatlar bo'sh qaytariladi.
+        isScoped
+          ? Promise.resolve([])
+          : prisma.request.groupBy({
+              by: ["branchId"],
+              _count: { _all: true },
+              orderBy: { _count: { branchId: "desc" } },
+              take: 5,
+            }),
+        isScoped
+          ? Promise.resolve([])
+          : prisma.request.groupBy({
+              by: ["technicianId"],
+              _count: { _all: true },
+              where: { technicianId: { not: null } },
+              orderBy: { _count: { technicianId: "desc" } },
+              take: 5,
+            }),
       ]);
 
     const avgResolutionHours =
