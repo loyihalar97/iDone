@@ -44,7 +44,7 @@ export function BottomNav({ role }: { role: Role }) {
   const items = NAV_BY_ROLE[role];
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-20 bg-tg-bg/95 backdrop-blur border-t border-line safe-bottom">
+    <nav className="fixed bottom-0 inset-x-0 z-20 bg-tg-bg/98 backdrop-blur border-t border-line safe-bottom">
       <div className="flex items-stretch justify-around px-2 pt-1.5">
         {items.map(({ to, label, icon: Icon }) => (
           <NavLink
