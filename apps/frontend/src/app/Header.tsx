@@ -8,12 +8,12 @@ export function Header({ title, showBack = false }: { title: string; showBack?: 
       {showBack && (
         <button
           onClick={() => navigate(-1)}
-          className="w-7 h-7 -ml-1 flex items-center justify-center text-tg-text active:opacity-60"
+          className="w-8 h-8 -ml-1 flex items-center justify-center rounded-full bg-accentSoft text-accent active:opacity-60"
         >
-          <ArrowLeft size={19} strokeWidth={1.75} />
+          <ArrowLeft size={18} strokeWidth={2} />
         </button>
       )}
-      <h1 className="font-semibold text-tg-text text-[15px] tracking-tight2">{title}</h1>
+      <h1 className="font-bold text-tg-text text-[16px] tracking-tight2">{title}</h1>
     </header>
   );
 }

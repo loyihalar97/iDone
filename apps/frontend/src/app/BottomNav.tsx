@@ -1,121 +1,78 @@
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { Role } from "@app/shared-types";
-import { useAuth } from "@/shared/hooks/useAuth";
-import { Spinner, Button } from "@/shared/ui/primitives";
-import { BottomNav } from "./BottomNav";
-import { Header } from "./Header";
+import {
+  ListChecks,
+  CheckCircle2,
+  BarChart3,
+  PlusCircle,
+  Users,
+  Building2,
+  LucideIcon,
+} from "lucide-react";
 
-import { DirectorRequestsPage } from "@/pages/director/DirectorRequestsPage";
-import { DirectorClosedRequestsPage } from "@/pages/director/DirectorClosedRequestsPage";
-import { DirectorNewRequestPage } from "@/pages/director/DirectorNewRequestPage";
-import { ChiefAllRequestsPage } from "@/pages/chief-technician/ChiefAllRequestsPage";
-import { TechnicianRequestsPage } from "@/pages/technician/TechnicianRequestsPage";
-import { TechnicianClosedRequestsPage } from "@/pages/technician/TechnicianClosedRequestsPage";
-import { SuperadminDashboardPage } from "@/pages/superadmin/SuperadminDashboardPage";
-import { SuperadminUsersPage } from "@/pages/superadmin/SuperadminUsersPage";
-import { SuperadminBranchesPage } from "@/pages/superadmin/SuperadminBranchesPage";
-import { SuperadminRequestsPage } from "@/pages/superadmin/SuperadminRequestsPage";
-import { RequestDetailPage } from "@/features/requests/RequestDetailPage";
-
-const HOME_BY_ROLE: Record<Role, string> = {
-  [Role.DIRECTOR]: "/director/requests",
-  [Role.CHIEF_TECHNICIAN]: "/chief/requests",
-  [Role.TECHNICIAN]: "/technician/requests",
-  [Role.SUPERADMIN]: "/superadmin/requests",
-};
-
-const TITLES: Record<string, string> = {
-  "/director/requests": "Ochiq zayavkalar",
-  "/director/closed": "Tugatilgan zayavkalar",
-  "/director/stats": "Statistika",
-  "/director/new": "Yangi zayavka",
-  "/chief/requests": "Barcha zayavkalar",
-  "/chief/dashboard": "Statistika",
-  "/technician/requests": "Ochiq ishlar",
-  "/technician/closed": "Tugatilgan ishlar",
-  "/technician/stats": "Statistika",
-  "/superadmin/requests": "Barcha zayavkalar",
-  "/superadmin/dashboard": "Statistika",
-  "/superadmin/users": "Foydalanuvchilar",
-  "/superadmin/branches": "Filiallar",
-};
-
-function Shell({ role }: { role: Role }) {
-  const location = useLocation();
-  const isDetail = location.pathname.startsWith("/requests/");
-  const title = isDetail ? "Zayavka tafsilotlari" : TITLES[location.pathname] ?? "Texnik Xizmat";
-
-  return (
-    <div className="min-h-screen pb-16">
-      <Header title={title} showBack={isDetail} />
-      <Routes>
-        <Route path="/" element={<Navigate to={HOME_BY_ROLE[role]} replace />} />
-
-        {role === Role.DIRECTOR && (
-          <>
-            <Route path="/director/requests" element={<DirectorRequestsPage />} />
-            <Route path="/director/closed" element={<DirectorClosedRequestsPage />} />
-            <Route path="/director/stats" element={<SuperadminDashboardPage />} />
-            <Route path="/director/new" element={<DirectorNewRequestPage />} />
-          </>
-        )}
-
-        {role === Role.CHIEF_TECHNICIAN && (
-          <>
-            <Route path="/chief/requests" element={<ChiefAllRequestsPage />} />
-            <Route path="/chief/dashboard" element={<SuperadminDashboardPage />} />
-          </>
-        )}
-
-        {role === Role.TECHNICIAN && (
-          <>
-            <Route path="/technician/requests" element={<TechnicianRequestsPage />} />
-            <Route path="/technician/closed" element={<TechnicianClosedRequestsPage />} />
-            <Route path="/technician/stats" element={<SuperadminDashboardPage />} />
-          </>
-        )}
-
-        {role === Role.SUPERADMIN && (
-          <>
-            <Route path="/superadmin/requests" element={<SuperadminRequestsPage />} />
-            <Route path="/superadmin/dashboard" element={<SuperadminDashboardPage />} />
-            <Route path="/superadmin/users" element={<SuperadminUsersPage />} />
-            <Route path="/superadmin/branches" element={<SuperadminBranchesPage />} />
-          </>
-        )}
-
-        <Route path="/requests/:id" element={<RequestDetailPage />} />
-        <Route path="*" element={<Navigate to={HOME_BY_ROLE[role]} replace />} />
-      </Routes>
-      {!isDetail && <BottomNav role={role} />}
-    </div>
-  );
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
 }
 
-function AuthGate() {
-  const { user, isLoading, error, retry } = useAuth();
+const NAV_BY_ROLE: Record<Role, NavItem[]> = {
+  [Role.DIRECTOR]: [
+    { to: "/director/requests", label: "Ochiq", icon: ListChecks },
+    { to: "/director/closed", label: "Tugagan", icon: CheckCircle2 },
+    { to: "/director/new", label: "Yangi", icon: PlusCircle },
+    { to: "/director/stats", label: "Statistika", icon: BarChart3 },
+  ],
+  [Role.CHIEF_TECHNICIAN]: [
+    { to: "/chief/requests", label: "Zayavkalar", icon: ListChecks },
+    { to: "/chief/dashboard", label: "Statistika", icon: BarChart3 },
+  ],
+  [Role.TECHNICIAN]: [
+    { to: "/technician/requests", label: "Ochiq", icon: ListChecks },
+    { to: "/technician/closed", label: "Tugagan", icon: CheckCircle2 },
+    { to: "/technician/stats", label: "Statistika", icon: BarChart3 },
+  ],
+  [Role.SUPERADMIN]: [
+    { to: "/superadmin/requests", label: "Zayavkalar", icon: ListChecks },
+    { to: "/superadmin/dashboard", label: "Statistika", icon: BarChart3 },
+    { to: "/superadmin/users", label: "Foydalanuv.", icon: Users },
+    { to: "/superadmin/branches", label: "Filiallar", icon: Building2 },
+  ],
+};
 
-  if (isLoading) return <Spinner label="Kirilmoqda..." />;
+export function BottomNav({ role }: { role: Role }) {
+  const items = NAV_BY_ROLE[role];
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-3">
-        <p className="text-tg-text font-medium">Kirishda xatolik</p>
-        <p className="text-tg-hint text-sm">{error}</p>
-        <Button onClick={retry}>Qayta urinish</Button>
+  return (
+    <nav className="fixed bottom-0 inset-x-0 z-20 bg-tg-bg/95 backdrop-blur border-t border-line safe-bottom">
+      <div className="flex items-stretch justify-around px-2 pt-1.5">
+        {items.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className="flex flex-col items-center justify-center gap-1 flex-1 py-1.5 min-w-0"
+          >
+            {({ isActive }) => (
+              <>
+                <span
+                  className={`flex items-center justify-center w-9 h-7 rounded-full transition ${
+                    isActive ? "bg-accentSoft text-accent" : "text-tg-hint"
+                  }`}
+                >
+                  <Icon size={19} strokeWidth={isActive ? 2.25 : 1.75} />
+                </span>
+                <span
+                  className={`text-[10px] leading-none truncate max-w-full ${
+                    isActive ? "text-accent font-semibold" : "text-tg-hint font-medium"
+                  }`}
+                >
+                  {label}
+                </span>
+              </>
+            )}
+          </NavLink>
+        ))}
       </div>
-    );
-  }
-
-  if (!user) return null;
-
-  return <Shell role={user.role} />;
-}
-
-export function App() {
-  return (
-    <BrowserRouter>
-      <AuthGate />
-    </BrowserRouter>
+    </nav>
   );
 }

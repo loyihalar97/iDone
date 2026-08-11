@@ -46,7 +46,7 @@ function Shell({ role }: { role: Role }) {
   const title = isDetail ? "Zayavka tafsilotlari" : TITLES[location.pathname] ?? "Texnik Xizmat";
 
   return (
-    <div className="min-h-screen pb-16">
+    <div className="min-h-screen pb-20">
       <Header title={title} showBack={isDetail} />
       <Routes>
         <Route path="/" element={<Navigate to={HOME_BY_ROLE[role]} replace />} />

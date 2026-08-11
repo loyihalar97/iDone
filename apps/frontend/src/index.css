@@ -29,6 +29,10 @@ svg {
 }
 
 :focus-visible {
-  outline: 2px solid var(--tg-theme-link-color, #2563eb);
+  outline: 2px solid var(--tg-theme-link-color, #FF5800);
   outline-offset: 2px;
+}
+
+::selection {
+  background-color: #FFE0CC;
 }

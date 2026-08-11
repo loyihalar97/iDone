@@ -12,7 +12,7 @@ import { LucideIcon, Loader2, ImageOff } from "lucide-react";
 
 export function Card({ children, className = "" }: PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={`bg-tg-bg border border-line rounded-card p-4 ${className}`}>
+    <div className={`bg-tg-bg border border-line rounded-card shadow-card p-4 ${className}`}>
       {children}
     </div>
   );
@@ -31,10 +31,10 @@ export function Button({
   ...props
 }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-control font-medium text-sm transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none";
+    "inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-control font-semibold text-sm transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none";
   const styles = {
-    primary: "bg-tg-button text-tg-buttonText",
-    secondary: "bg-transparent text-tg-text border border-lineStrong",
+    primary: "bg-tg-button text-tg-buttonText shadow-accent",
+    secondary: "bg-accentSoft text-accent border border-transparent",
     ghost: "bg-transparent text-tg-hint",
     danger: "bg-transparent text-red-600 border border-red-200",
   };
