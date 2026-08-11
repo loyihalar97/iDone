@@ -17,8 +17,8 @@ export default {
           button: "var(--tg-theme-button-color, #18181b)",
           buttonText: "var(--tg-theme-button-text-color, #ffffff)",
         },
-        line: "rgba(24, 24, 27, 0.08)",
-        lineStrong: "rgba(24, 24, 27, 0.14)",
+        line: "#e4e4e7",
+        lineStrong: "#d4d4d8",
         accent: "#4f46e5",
         accentSoft: "#eef2ff",
         priority: {

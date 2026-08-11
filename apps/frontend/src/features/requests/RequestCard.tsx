@@ -1,6 +1,6 @@
 import { CATEGORY_LABELS_UZ } from "@app/shared-types";
 import { RequestItem } from "@/shared/api/requests";
-import { Card } from "@/shared/ui/primitives";
+import { Card, Thumb } from "@/shared/ui/primitives";
 import { PriorityBadge, StatusBadge } from "@/shared/ui/Badges";
 import { Link } from "react-router-dom";
 import { User } from "lucide-react";
@@ -14,10 +14,9 @@ export function RequestCard({ request }: { request: RequestItem }) {
             <p className="font-semibold text-tg-text text-[15px] truncate">{request.branch.name}</p>
             <p className="text-xs text-tg-hint mt-0.5">{CATEGORY_LABELS_UZ[request.category]}</p>
           </div>
-          <img
+          <Thumb
             src={request.beforePhotoUrl}
-            alt=""
-            className="w-14 h-14 rounded-control object-cover flex-shrink-0 border border-line"
+            className="w-14 h-14 rounded-control object-cover flex-shrink-0"
           />
         </div>
         <p className="text-sm text-tg-text/80 line-clamp-2 mb-3 leading-relaxed">

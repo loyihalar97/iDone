@@ -1,12 +1,14 @@
 import {
   ButtonHTMLAttributes,
+  ImgHTMLAttributes,
   InputHTMLAttributes,
   LabelHTMLAttributes,
   PropsWithChildren,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
+  useState,
 } from "react";
-import { LucideIcon, Loader2 } from "lucide-react";
+import { LucideIcon, Loader2, ImageOff } from "lucide-react";
 
 export function Card({ children, className = "" }: PropsWithChildren<{ className?: string }>) {
   return (
@@ -66,6 +68,29 @@ export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HT
 
 export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={`${fieldBase} appearance-none ${className}`} {...props} />;
+}
+
+export function Thumb({ className = "", alt = "", ...props }: ImgHTMLAttributes<HTMLImageElement>) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed || !props.src) {
+    return (
+      <div
+        className={`flex items-center justify-center bg-tg-secondaryBg border border-line text-tg-hint ${className}`}
+      >
+        <ImageOff size={18} strokeWidth={1.5} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      alt={alt}
+      className={`border border-line bg-tg-secondaryBg ${className}`}
+      onError={() => setFailed(true)}
+      {...props}
+    />
+  );
 }
 
 export function Spinner({ label }: { label?: string }) {

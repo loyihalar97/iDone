@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Category, Priority, CATEGORY_LABELS_UZ, PRIORITY_LABELS_UZ } from "@app/shared-types";
 import { requestsApi, mediaApi } from "@/shared/api/requests";
 import { usersApi } from "@/shared/api";
-import { Button, Card, Label, Select, Textarea } from "@/shared/ui/primitives";
+import { Button, Card, Label, Select, Textarea, Thumb } from "@/shared/ui/primitives";
 import { telegram } from "@/shared/telegram/webapp";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { Camera, Send } from "lucide-react";
@@ -130,7 +130,7 @@ export function NewRequestForm() {
           />
         </label>
         {preview && (
-          <img src={preview} alt="Oldindan ko'rish" className="mt-3 w-full h-40 object-cover rounded-control border border-line" />
+          <Thumb src={preview} alt="Oldindan ko'rish" className="mt-3 w-full h-40 object-cover rounded-control" />
         )}
       </Card>
 

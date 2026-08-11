@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CATEGORY_LABELS_UZ, Role, RequestStatus } from "@app/shared-types";
 import { requestsApi, mediaApi } from "@/shared/api/requests";
 import { usersApi } from "@/shared/api";
-import { Card, Button, Spinner, Label, Select } from "@/shared/ui/primitives";
+import { Card, Button, Spinner, Label, Select, Thumb } from "@/shared/ui/primitives";
 import { PriorityBadge, StatusBadge } from "@/shared/ui/Badges";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { telegram } from "@/shared/telegram/webapp";
@@ -77,10 +77,10 @@ export function RequestDetailPage() {
           <span className="text-sm text-tg-hint">{CATEGORY_LABELS_UZ[request.category]}</span>
         </div>
         <p className="text-sm text-tg-text mb-3 leading-relaxed">{request.description}</p>
-        <img
+        <Thumb
           src={request.beforePhotoUrl}
           alt="Muammo"
-          className="w-full h-48 object-cover rounded-control border border-line mb-2"
+          className="w-full h-48 object-cover rounded-control mb-2"
         />
         <p className="text-xs text-tg-hint">Yaratdi: {request.createdBy.fullName}</p>
         {request.technician && (
@@ -91,10 +91,10 @@ export function RequestDetailPage() {
       {request.afterPhotoUrl && (
         <Card>
           <Label>Natija rasmi</Label>
-          <img
-            src={request.afterPhotoUrl}
+          <Thumb
+            src={request.afterPhotoUrl ?? undefined}
             alt="Natija"
-            className="w-full h-48 object-cover rounded-control border border-line"
+            className="w-full h-48 object-cover rounded-control"
           />
         </Card>
       )}
