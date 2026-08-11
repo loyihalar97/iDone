@@ -24,15 +24,15 @@ export default {
         accentDark: "#E64F00",
         priority: {
           low: "#71717a",
-          medium: "#2563eb",
-          high: "#d97706",
+          medium: "#B45309",
+          high: "#EA580C",
           critical: "#dc2626",
         },
         status: {
           new: "#FF5800",
           progress: "#d97706",
           techDone: "#7c3aed",
-          chiefApproved: "#0891b2",
+          chiefApproved: "#0f766e",
           directorAccepted: "#16a34a",
           closed: "#71717a",
         },
