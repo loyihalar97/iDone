@@ -5,36 +5,46 @@ export default {
     extend: {
       colors: {
         // Telegram WebApp CSS o'zgaruvchilariga bog'langan — foydalanuvchining
-        // Telegram mavzusiga (light/dark) avtomatik moslashadi.
+        // Telegram mavzusiga (light/dark) avtomatik moslashadi. Fallback qiymatlar
+        // minimalist, deyarli monoxrom palitraga moslangan — bitta aksent rang (indigo)
+        // va neytral kulrang shkala.
         tg: {
           bg: "var(--tg-theme-bg-color, #ffffff)",
-          secondaryBg: "var(--tg-theme-secondary-bg-color, #f5f6f8)",
-          text: "var(--tg-theme-text-color, #111827)",
-          hint: "var(--tg-theme-hint-color, #6b7280)",
-          link: "var(--tg-theme-link-color, #2563eb)",
-          button: "var(--tg-theme-button-color, #2563eb)",
+          secondaryBg: "var(--tg-theme-secondary-bg-color, #fafafa)",
+          text: "var(--tg-theme-text-color, #18181b)",
+          hint: "var(--tg-theme-hint-color, #8b8b93)",
+          link: "var(--tg-theme-link-color, #4f46e5)",
+          button: "var(--tg-theme-button-color, #18181b)",
           buttonText: "var(--tg-theme-button-text-color, #ffffff)",
         },
+        line: "rgba(24, 24, 27, 0.08)",
+        lineStrong: "rgba(24, 24, 27, 0.14)",
+        accent: "#4f46e5",
+        accentSoft: "#eef2ff",
         priority: {
-          low: "#6b7280",
-          medium: "#2563eb",
-          high: "#d97706",
+          low: "#71717a",
+          medium: "#4f46e5",
+          high: "#c2760c",
           critical: "#dc2626",
         },
         status: {
-          new: "#2563eb",
-          progress: "#d97706",
+          new: "#4f46e5",
+          progress: "#c2760c",
           techDone: "#7c3aed",
           chiefApproved: "#0891b2",
           directorAccepted: "#16a34a",
-          closed: "#4b5563",
+          closed: "#71717a",
         },
       },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
       },
       borderRadius: {
-        card: "14px",
+        card: "16px",
+        control: "12px",
+      },
+      letterSpacing: {
+        tight2: "-0.01em",
       },
     },
   },

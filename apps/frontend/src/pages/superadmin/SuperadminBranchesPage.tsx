@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { branchesApi } from "@/shared/api";
-import { Card, Button, Spinner } from "@/shared/ui/primitives";
+import { Card, Button, Spinner, Label, Input } from "@/shared/ui/primitives";
+import { Plus } from "lucide-react";
 
 export function SuperadminBranchesPage() {
   const queryClient = useQueryClient();
@@ -29,22 +30,23 @@ export function SuperadminBranchesPage() {
   });
 
   return (
-    <div className="px-4 pt-2 pb-8 space-y-4">
+    <div className="px-4 pt-2 pb-8 space-y-3">
       <Card>
-        <p className="font-medium text-tg-text mb-3">Yangi filial qo'shish</p>
-        <input
+        <Label>Yangi filial qo'shish</Label>
+        <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Filial nomi"
-          className="w-full bg-tg-bg border border-black/10 rounded-xl px-3 py-2.5 text-tg-text mb-2"
+          className="mb-2"
         />
-        <input
+        <Input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           placeholder="Manzil (ixtiyoriy)"
-          className="w-full bg-tg-bg border border-black/10 rounded-xl px-3 py-2.5 text-tg-text mb-3"
+          className="mb-3"
         />
         <Button
+          icon={Plus}
           className="w-full"
           disabled={name.trim().length < 2 || createMutation.isPending}
           onClick={() => createMutation.mutate()}
@@ -59,15 +61,14 @@ export function SuperadminBranchesPage() {
         branches?.map((b) => (
           <Card key={b.id} className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-tg-text">{b.name}</p>
-              {b.address && <p className="text-xs text-tg-hint">{b.address}</p>}
+              <p className="font-medium text-tg-text text-sm">{b.name}</p>
+              {b.address && <p className="text-xs text-tg-hint mt-0.5">{b.address}</p>}
             </div>
             <button
               onClick={() => toggleMutation.mutate({ id: b.id, isActive: !b.isActive })}
-              className={`text-xs px-3 py-1.5 rounded-full ${
-                b.isActive ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"
-              }`}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-line text-xs font-medium text-tg-text"
             >
+              <span className={`w-1.5 h-1.5 rounded-full ${b.isActive ? "bg-status-directorAccepted" : "bg-status-closed"}`} />
               {b.isActive ? "Faol" : "Faol emas"}
             </button>
           </Card>

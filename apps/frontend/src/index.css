@@ -8,8 +8,15 @@ html, body, #root {
 
 body {
   background-color: var(--tg-theme-bg-color, #ffffff);
-  color: var(--tg-theme-text-color, #111827);
+  color: var(--tg-theme-text-color, #18181b);
   -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+/* Chiziqli (line) ikonlar uchun standart qalinlik */
+svg {
+  stroke-width: 1.75px;
 }
 
 /* Telegram Mini App'da pastki xavfsiz hudud (home indicator) uchun bo'shliq */

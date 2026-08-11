@@ -6,9 +6,11 @@ import { BottomNav } from "./BottomNav";
 import { Header } from "./Header";
 
 import { DirectorRequestsPage } from "@/pages/director/DirectorRequestsPage";
+import { DirectorClosedRequestsPage } from "@/pages/director/DirectorClosedRequestsPage";
 import { DirectorNewRequestPage } from "@/pages/director/DirectorNewRequestPage";
 import { ChiefAllRequestsPage } from "@/pages/chief-technician/ChiefAllRequestsPage";
 import { TechnicianRequestsPage } from "@/pages/technician/TechnicianRequestsPage";
+import { TechnicianClosedRequestsPage } from "@/pages/technician/TechnicianClosedRequestsPage";
 import { SuperadminDashboardPage } from "@/pages/superadmin/SuperadminDashboardPage";
 import { SuperadminUsersPage } from "@/pages/superadmin/SuperadminUsersPage";
 import { SuperadminBranchesPage } from "@/pages/superadmin/SuperadminBranchesPage";
@@ -23,11 +25,13 @@ const HOME_BY_ROLE: Record<Role, string> = {
 };
 
 const TITLES: Record<string, string> = {
-  "/director/requests": "Mening zayavkalarim",
+  "/director/requests": "Ochiq zayavkalar",
+  "/director/closed": "Tugatilgan zayavkalar",
   "/director/new": "Yangi zayavka",
   "/chief/requests": "Barcha zayavkalar",
   "/chief/dashboard": "Statistika",
-  "/technician/requests": "Ishlarim",
+  "/technician/requests": "Ochiq ishlar",
+  "/technician/closed": "Tugatilgan ishlar",
   "/superadmin/requests": "Barcha zayavkalar",
   "/superadmin/dashboard": "Statistika",
   "/superadmin/users": "Foydalanuvchilar",
@@ -48,6 +52,7 @@ function Shell({ role }: { role: Role }) {
         {role === Role.DIRECTOR && (
           <>
             <Route path="/director/requests" element={<DirectorRequestsPage />} />
+            <Route path="/director/closed" element={<DirectorClosedRequestsPage />} />
             <Route path="/director/new" element={<DirectorNewRequestPage />} />
           </>
         )}
@@ -60,7 +65,10 @@ function Shell({ role }: { role: Role }) {
         )}
 
         {role === Role.TECHNICIAN && (
-          <Route path="/technician/requests" element={<TechnicianRequestsPage />} />
+          <>
+            <Route path="/technician/requests" element={<TechnicianRequestsPage />} />
+            <Route path="/technician/closed" element={<TechnicianClosedRequestsPage />} />
+          </>
         )}
 
         {role === Role.SUPERADMIN && (

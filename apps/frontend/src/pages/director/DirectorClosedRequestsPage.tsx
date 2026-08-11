@@ -2,23 +2,23 @@ import { useQuery } from "@tanstack/react-query";
 import { RequestStatus } from "@app/shared-types";
 import { requestsApi } from "@/shared/api/requests";
 import { RequestList } from "@/features/requests/RequestList";
-import { Wrench } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 
-export function TechnicianRequestsPage() {
+export function DirectorClosedRequestsPage() {
   const { data, isLoading } = useQuery({
-    queryKey: ["requests", "technician"],
+    queryKey: ["requests", "director"],
     queryFn: () => requestsApi.list({ pageSize: 100 }).then((r) => r.data),
   });
 
-  const openItems = data?.items.filter((r) => r.status !== RequestStatus.CLOSED);
+  const closedItems = data?.items.filter((r) => r.status === RequestStatus.CLOSED);
 
   return (
     <RequestList
-      items={openItems}
+      items={closedItems}
       isLoading={isLoading}
-      emptyTitle="Sizga biriktirilgan ochiq ish yo'q"
-      emptySubtitle="Bosh texnik yangi ish biriktirganda shu yerda ko'rinadi"
-      emptyIcon={Wrench}
+      emptyTitle="Tugatilgan zayavkalar yo'q"
+      emptySubtitle="Yopilgan zayavkalar shu yerda ko'rinadi"
+      emptyIcon={CheckCircle2}
     />
   );
 }

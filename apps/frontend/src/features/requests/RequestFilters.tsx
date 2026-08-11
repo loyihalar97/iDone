@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { STATUS_LABELS_UZ, Priority, RequestStatus } from "@app/shared-types";
 import { branchesApi } from "@/shared/api";
 import { RequestFilters as Filters } from "@/shared/api/requests";
+import { Select } from "@/shared/ui/primitives";
 
 interface Props {
   filters: Filters;
@@ -16,10 +17,10 @@ export function RequestFiltersBar({ filters, onChange }: Props) {
 
   return (
     <div className="px-4 pt-2 pb-3 flex gap-2 overflow-x-auto">
-      <select
+      <Select
         value={filters.status ?? ""}
         onChange={(e) => onChange({ ...filters, status: (e.target.value || undefined) as RequestStatus })}
-        className="bg-tg-secondaryBg border border-black/10 rounded-lg px-2 py-1.5 text-xs text-tg-text flex-shrink-0"
+        className="!w-auto flex-shrink-0 text-xs py-2"
       >
         <option value="">Barcha statuslar</option>
         {Object.entries(STATUS_LABELS_UZ).map(([value, label]) => (
@@ -27,12 +28,12 @@ export function RequestFiltersBar({ filters, onChange }: Props) {
             {label}
           </option>
         ))}
-      </select>
+      </Select>
 
-      <select
+      <Select
         value={filters.branchId ?? ""}
         onChange={(e) => onChange({ ...filters, branchId: e.target.value || undefined })}
-        className="bg-tg-secondaryBg border border-black/10 rounded-lg px-2 py-1.5 text-xs text-tg-text flex-shrink-0"
+        className="!w-auto flex-shrink-0 text-xs py-2"
       >
         <option value="">Barcha filiallar</option>
         {branches?.map((b) => (
@@ -40,19 +41,19 @@ export function RequestFiltersBar({ filters, onChange }: Props) {
             {b.name}
           </option>
         ))}
-      </select>
+      </Select>
 
-      <select
+      <Select
         value={filters.priority ?? ""}
         onChange={(e) => onChange({ ...filters, priority: (e.target.value || undefined) as Priority })}
-        className="bg-tg-secondaryBg border border-black/10 rounded-lg px-2 py-1.5 text-xs text-tg-text flex-shrink-0"
+        className="!w-auto flex-shrink-0 text-xs py-2"
       >
         <option value="">Barcha darajalar</option>
         <option value={Priority.LOW}>Past</option>
         <option value={Priority.MEDIUM}>O'rta</option>
         <option value={Priority.HIGH}>Yuqori</option>
         <option value={Priority.CRITICAL}>Kritik</option>
-      </select>
+      </Select>
     </div>
   );
 }
