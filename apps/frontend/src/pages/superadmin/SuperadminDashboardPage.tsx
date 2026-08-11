@@ -32,35 +32,33 @@ export function SuperadminDashboardPage() {
 
       <StatCard label="O'rtacha bajarilish vaqti (soat)" value={data.avgResolutionHours} icon={Timer} />
 
-      <Card>
-        <p className="font-medium text-tg-text text-sm mb-3">Eng ko'p muammo kelayotgan filiallar</p>
-        <div className="space-y-2.5">
-          {data.topBranchesByRequests.length === 0 && (
-            <p className="text-sm text-tg-hint">Ma'lumot yo'q</p>
-          )}
-          {data.topBranchesByRequests.map((b) => (
-            <div key={b.branchName} className="flex justify-between text-sm">
-              <span className="text-tg-text">{b.branchName}</span>
-              <span className="text-tg-hint">{b.count} ta</span>
-            </div>
-          ))}
-        </div>
-      </Card>
+      {data.topBranchesByRequests.length > 0 && (
+        <Card>
+          <p className="font-medium text-tg-text text-sm mb-3">Eng ko'p muammo kelayotgan filiallar</p>
+          <div className="space-y-2.5">
+            {data.topBranchesByRequests.map((b) => (
+              <div key={b.branchName} className="flex justify-between text-sm">
+                <span className="text-tg-text">{b.branchName}</span>
+                <span className="text-tg-hint">{b.count} ta</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
-      <Card>
-        <p className="font-medium text-tg-text text-sm mb-3">Eng band texniklar</p>
-        <div className="space-y-2.5">
-          {data.busiestTechnicians.length === 0 && (
-            <p className="text-sm text-tg-hint">Ma'lumot yo'q</p>
-          )}
-          {data.busiestTechnicians.map((t) => (
-            <div key={t.technicianName} className="flex justify-between text-sm">
-              <span className="text-tg-text">{t.technicianName}</span>
-              <span className="text-tg-hint">{t.count} ta</span>
-            </div>
-          ))}
-        </div>
-      </Card>
+      {data.busiestTechnicians.length > 0 && (
+        <Card>
+          <p className="font-medium text-tg-text text-sm mb-3">Eng band texniklar</p>
+          <div className="space-y-2.5">
+            {data.busiestTechnicians.map((t) => (
+              <div key={t.technicianName} className="flex justify-between text-sm">
+                <span className="text-tg-text">{t.technicianName}</span>
+                <span className="text-tg-hint">{t.count} ta</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
