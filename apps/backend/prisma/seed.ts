@@ -16,10 +16,10 @@ async function main() {
   // DIQQAT: superadminni faollashtirish uchun quyidagi telegramId ni
   // o'zingizning haqiqiy Telegram ID'ingizga almashtiring (masalan @userinfobot orqali bilib oling).
   const superadmin = await prisma.user.upsert({
-    where: { telegramId: "000000000" },
+    where: { telegramId: "1488298476" },
     update: {},
     create: {
-      telegramId: "000000000",
+      telegramId: "1488298476",
       fullName: "Bosh administrator",
       role: Role.superadmin,
       isActive: true,
