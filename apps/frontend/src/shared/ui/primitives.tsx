@@ -12,7 +12,7 @@ import { LucideIcon, Loader2, ImageOff } from "lucide-react";
 
 export function Card({ children, className = "" }: PropsWithChildren<{ className?: string }>) {
   return (
-    <div className={`bg-tg-bg border border-line rounded-card shadow-card p-4 ${className}`}>
+    <div className={`bg-tg-bg rounded-card shadow-card p-4 ${className}`}>
       {children}
     </div>
   );
