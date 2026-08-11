@@ -1,6 +1,6 @@
 # ---- Build stage ----
-FROM node:20-alpine AS build
-RUN apk add --no-cache openssl
+FROM node:20-slim AS build
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 
 COPY package.json ./
@@ -17,7 +17,8 @@ RUN npx prisma generate
 RUN npm run build
 
 # ---- Runtime stage ----
-FROM node:20-alpine AS runtime
+FROM node:20-slim AS runtime
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 
