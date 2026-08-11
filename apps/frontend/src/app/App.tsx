@@ -27,11 +27,13 @@ const HOME_BY_ROLE: Record<Role, string> = {
 const TITLES: Record<string, string> = {
   "/director/requests": "Ochiq zayavkalar",
   "/director/closed": "Tugatilgan zayavkalar",
+  "/director/stats": "Statistika",
   "/director/new": "Yangi zayavka",
   "/chief/requests": "Barcha zayavkalar",
   "/chief/dashboard": "Statistika",
   "/technician/requests": "Ochiq ishlar",
   "/technician/closed": "Tugatilgan ishlar",
+  "/technician/stats": "Statistika",
   "/superadmin/requests": "Barcha zayavkalar",
   "/superadmin/dashboard": "Statistika",
   "/superadmin/users": "Foydalanuvchilar",
@@ -53,6 +55,7 @@ function Shell({ role }: { role: Role }) {
           <>
             <Route path="/director/requests" element={<DirectorRequestsPage />} />
             <Route path="/director/closed" element={<DirectorClosedRequestsPage />} />
+            <Route path="/director/stats" element={<SuperadminDashboardPage />} />
             <Route path="/director/new" element={<DirectorNewRequestPage />} />
           </>
         )}
@@ -68,6 +71,7 @@ function Shell({ role }: { role: Role }) {
           <>
             <Route path="/technician/requests" element={<TechnicianRequestsPage />} />
             <Route path="/technician/closed" element={<TechnicianClosedRequestsPage />} />
+            <Route path="/technician/stats" element={<SuperadminDashboardPage />} />
           </>
         )}
 
