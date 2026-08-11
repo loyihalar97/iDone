@@ -152,6 +152,25 @@ export const requestsService = {
     );
 
     let finalRequest = updated;
+
+    // Bosh texnik "Tugatildi" bossa, alohida "Tasdiqlash" bosqichi kerak emas —
+    // tizim avtomatik ravishda tasdiqlangan deb belgilaydi va Direktorga xabar boradi.
+    const autoApprove =
+      nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN && actor.role === Role.CHIEF_TECHNICIAN;
+
+    if (autoApprove) {
+      finalRequest = await requestsRepository.updateStatus(
+        requestId,
+        RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN as PrismaRequestStatus
+      );
+      await requestsRepository.addStatusHistory(
+        requestId,
+        RequestStatus.COMPLETED_BY_TECHNICIAN as PrismaRequestStatus,
+        RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN as PrismaRequestStatus,
+        actor.userId
+      );
+    }
+
     if (willAutoClose) {
       finalRequest = await requestsRepository.updateStatus(requestId, PrismaRequestStatus.closed);
       await requestsRepository.addStatusHistory(
@@ -169,7 +188,7 @@ export const requestsService = {
       performedById: actor.userId,
     });
 
-    await this.notifyOnStatusChange(finalRequest, nextStatus);
+    await this.notifyOnStatusChange(finalRequest, autoApprove ? RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN : nextStatus);
 
     return finalRequest;
   },
