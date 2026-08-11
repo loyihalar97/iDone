@@ -17,6 +17,11 @@ async function main() {
   app.use("/internal", createNotificationsRouter(bot));
 
   if (config.useWebhook) {
+    if (!config.webhookDomain) {
+      throw new Error(
+        "USE_WEBHOOK=true bo'lganda WEBHOOK_DOMAIN environment variable ham majburiy"
+      );
+    }
     app.use(bot.webhookCallback(config.webhookPath));
     await bot.telegram.setWebhook(`${config.webhookDomain}${config.webhookPath}`);
     logger.info(`Webhook o'rnatildi: ${config.webhookDomain}${config.webhookPath}`);
