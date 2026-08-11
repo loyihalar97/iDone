@@ -8,10 +8,14 @@ interface NotifyInput {
   requestId?: string;
   type: NotificationType;
   text: string;
+  /** Agar berilsa, bot xabarni matn o'rniga (yoki matn bilan birga, caption sifatida) rasm(lar) bilan yuboradi. */
+  photoUrls?: string[];
+  /** true bo'lsa, bot xabarni Telegram HTML formatlash bilan yuboradi (masalan <b>...</b>). */
+  html?: boolean;
 }
 
 export const notificationsService = {
-  async notify(input: NotifyInput) {
+  async notify(input: NotifyInput, opts: { awaitDelivery?: boolean } = {}) {
     const notification = await prisma.notification.create({
       data: {
         userId: input.userId,
@@ -23,9 +27,13 @@ export const notificationsService = {
 
     // Bot'ning ichki serveriga yuborib, Telegram xabarini jo'natishni so'raymiz.
     // Bot server ishlamasa ham asosiy oqim to'xtab qolmasligi uchun xatoni yutib, faqat log qilamiz.
-    this.forwardToBot(input).catch((err) => {
+    const delivery = this.forwardToBot(input).catch((err) => {
       logger.warn({ err }, "Bildirishnomani botga yuborib bo'lmadi");
     });
+
+    if (opts.awaitDelivery) {
+      await delivery;
+    }
 
     return notification;
   },
@@ -44,6 +52,8 @@ export const notificationsService = {
         telegramId: user.telegramId,
         text: input.text,
         requestId: input.requestId,
+        photoUrls: input.photoUrls,
+        html: input.html,
       }),
     });
   },

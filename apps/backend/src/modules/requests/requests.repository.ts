@@ -60,6 +60,14 @@ export const requestsRepository = {
     });
   },
 
+  clearMedia(id: string) {
+    return prisma.request.update({
+      where: { id },
+      data: { beforePhotoUrl: null, afterPhotoUrl: null },
+      include: includeRelations,
+    });
+  },
+
   assignTechnician(id: string, technicianId: string) {
     return prisma.request.update({
       where: { id },

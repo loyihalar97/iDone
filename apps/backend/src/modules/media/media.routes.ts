@@ -39,6 +39,7 @@ mediaRouter.post(
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) throw AppError.validation("Fayl topilmadi");
+    await mediaService.compressImageIfNeeded(req.file);
     const url = await mediaService.uploadAndGetUrl(req.file);
     res.json({ url });
   })

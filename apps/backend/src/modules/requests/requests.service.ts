@@ -1,4 +1,13 @@
-import { NotificationType, RequestStatus, Role } from "@app/shared-types";
+import {
+  CATEGORY_LABELS_UZ,
+  Category,
+  NotificationType,
+  Priority,
+  PRIORITY_LABELS_UZ,
+  RequestStatus,
+  Role,
+  STATUS_LABELS_UZ,
+} from "@app/shared-types";
 import { RequestStatus as PrismaRequestStatus } from "@prisma/client";
 import { AppError } from "../../core/errors/AppError";
 import { prisma } from "../../core/database/prisma";
@@ -6,6 +15,7 @@ import { requestsRepository, RequestFilters } from "./requests.repository";
 import { assertValidTransition, shouldAutoClose } from "./requests.state-machine";
 import { auditLogService } from "../audit-log/audit-log.service";
 import { notificationsService } from "../notifications/notifications.service";
+import { mediaService } from "../media/media.service";
 import type { AuthTokenPayload } from "../auth/auth.service";
 
 interface CreateRequestInput {
@@ -15,6 +25,36 @@ interface CreateRequestInput {
   description: string;
   priority: string;
   beforePhotoUrl: string;
+}
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+type RequestWithRelations = NonNullable<Awaited<ReturnType<typeof requestsRepository.findById>>>;
+
+/**
+ * Zayavka haqida Telegram'ga (HTML formatida) yuboriladigan chiroyli
+ * "karta" matnini quradi — ochilganda va yopilganda ishlatiladi.
+ */
+function buildRequestCardHtml(request: RequestWithRelations, title: string): string {
+  const lines = [
+    `<b>${title}</b>`,
+    ``,
+    `🏢 <b>Filial:</b> ${escapeHtml(request.branch.name)}`,
+    `📂 <b>Kategoriya:</b> ${CATEGORY_LABELS_UZ[request.category as Category]}`,
+    `⚠️ <b>Muhimlik:</b> ${PRIORITY_LABELS_UZ[request.priority as Priority]}`,
+    `📝 <b>Tavsif:</b> ${escapeHtml(request.description)}`,
+    `👤 <b>Direktor:</b> ${escapeHtml(request.createdBy.fullName)}`,
+  ];
+  if (request.chiefTechnician) {
+    lines.push(`🧑‍🔧 <b>Bosh texnik:</b> ${escapeHtml(request.chiefTechnician.fullName)}`);
+  }
+  if (request.technician) {
+    lines.push(`🔧 <b>Texnik:</b> ${escapeHtml(request.technician.fullName)}`);
+  }
+  lines.push(`📌 <b>Holat:</b> ${STATUS_LABELS_UZ[request.status as RequestStatus]}`);
+  return lines.join("\n");
 }
 
 export const requestsService = {
@@ -44,7 +84,19 @@ export const requestsService = {
       metadata: { branchId: input.branchId, priority: input.priority },
     });
 
-    // Bosh texnikka bildirishnoma
+    // Zayavka ochilganda Direktor va Bosh texnikka formatlangan, rasmli xabar yuboriladi.
+    const openCardText = buildRequestCardHtml(request, "🆕 Yangi zayavka ochildi");
+    const openPhotoUrls = request.beforePhotoUrl ? [request.beforePhotoUrl] : undefined;
+
+    await notificationsService.notify({
+      userId: actor.userId,
+      requestId: request.id,
+      type: NotificationType.REQUEST_CREATED,
+      text: openCardText,
+      photoUrls: openPhotoUrls,
+      html: true,
+    });
+
     const chiefTechnicians = request.chiefTechnicianId
       ? [request.chiefTechnician]
       : await prisma.user.findMany({ where: { role: Role.CHIEF_TECHNICIAN, isActive: true } });
@@ -55,7 +107,9 @@ export const requestsService = {
         userId: ct.id,
         requestId: request.id,
         type: NotificationType.REQUEST_CREATED,
-        text: `🆕 Yangi zayavka: ${request.branch.name} filialida "${request.category}" bo'yicha muammo. Muhimlik: ${request.priority}.`,
+        text: openCardText,
+        photoUrls: openPhotoUrls,
+        html: true,
       });
     }
 
@@ -215,18 +269,54 @@ export const requestsService = {
     }
 
     if (nextStatus === RequestStatus.ACCEPTED_BY_DIRECTOR) {
-      const recipients = [request.createdById, request.chiefTechnicianId, request.technicianId].filter(
+      const closeCardText = buildRequestCardHtml(request, "🔒 Zayavka yopildi");
+      const closePhotoUrls = [request.beforePhotoUrl, request.afterPhotoUrl].filter(
+        (u): u is string => !!u
+      );
+
+      // Direktor va Bosh texnikka — formatlangan, oldin/keyin rasmlari bilan.
+      const cardRecipients = [request.createdById, request.chiefTechnicianId].filter(
         (id): id is string => !!id
       );
-      for (const userId of recipients) {
+      for (const userId of cardRecipients) {
+        await notificationsService.notify(
+          {
+            userId,
+            requestId: request.id,
+            type: NotificationType.REQUEST_CLOSED,
+            text: closeCardText,
+            photoUrls: closePhotoUrls.length > 0 ? closePhotoUrls : undefined,
+            html: true,
+          },
+          { awaitDelivery: true }
+        );
+      }
+
+      // Texnikka — oddiy matnli xabar (o'zgarishsiz).
+      if (request.technicianId) {
         await notificationsService.notify({
-          userId,
+          userId: request.technicianId,
           requestId: request.id,
           type: NotificationType.REQUEST_CLOSED,
           text: `🔒 Zayavka yopildi: ${request.branch.name}, "${request.category}".`,
         });
       }
+
+      // Rasmlar Telegram chatlarida saqlanib qoladi (yuqorida yuborildi),
+      // shuning uchun bazadan va diskdan xavfsiz o'chirib tashlaymiz.
+      await this.purgeMedia(request);
     }
+  },
+
+  /**
+   * Zayavka yopilgandan keyin uning rasm fayllarini diskdan va bazadan
+   * o'chiradi. Rasmlar Telegram bot chatida (yuqorida yuborilgan xabarlarda)
+   * saqlanib qolaveradi, chunki Telegram ularni o'z serverida keshlaydi.
+   */
+  async purgeMedia(request: RequestWithRelations) {
+    mediaService.deleteLocalFileByUrl(request.beforePhotoUrl);
+    mediaService.deleteLocalFileByUrl(request.afterPhotoUrl);
+    await requestsRepository.clearMedia(request.id);
   },
 
   async assertCanView(request: NonNullable<Awaited<ReturnType<typeof requestsRepository.findById>>>, actor: AuthTokenPayload) {

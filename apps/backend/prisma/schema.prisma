@@ -100,7 +100,7 @@ model Request {
   priority            Priority
   status              RequestStatus @default(new)
 
-  beforePhotoUrl      String        @map("before_photo_url")
+  beforePhotoUrl      String?       @map("before_photo_url")
   afterPhotoUrl       String?       @map("after_photo_url")
 
   createdAt           DateTime      @default(now()) @map("created_at")

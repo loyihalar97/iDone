@@ -11,13 +11,36 @@ export function createNotificationsRouter(bot: Telegraf) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { telegramId, text } = req.body as { telegramId?: string; text?: string };
+    const { telegramId, text, photoUrls, html } = req.body as {
+      telegramId?: string;
+      text?: string;
+      photoUrls?: string[];
+      html?: boolean;
+    };
     if (!telegramId || !text) {
       return res.status(400).json({ error: "telegramId va text majburiy" });
     }
 
+    const parseMode = html ? ("HTML" as const) : undefined;
+
     try {
-      await bot.telegram.sendMessage(telegramId, text);
+      if (photoUrls && photoUrls.length === 1) {
+        await bot.telegram.sendPhoto(telegramId, photoUrls[0], {
+          caption: text,
+          parse_mode: parseMode,
+        });
+      } else if (photoUrls && photoUrls.length > 1) {
+        await bot.telegram.sendMediaGroup(
+          telegramId,
+          photoUrls.map((url, i) => ({
+            type: "photo" as const,
+            media: url,
+            ...(i === 0 ? { caption: text, parse_mode: parseMode } : {}),
+          }))
+        );
+      } else {
+        await bot.telegram.sendMessage(telegramId, text, { parse_mode: parseMode });
+      }
       return res.json({ delivered: true });
     } catch (err) {
       // Foydalanuvchi botni bloklagan yoki hali /start bosmagan bo'lishi mumkin —
