@@ -17,7 +17,7 @@ const TRANSITIONS: Transition[] = [
   {
     from: RequestStatus.IN_PROGRESS,
     to: RequestStatus.COMPLETED_BY_TECHNICIAN,
-    allowedRoles: [Role.TECHNICIAN],
+    allowedRoles: [Role.CHIEF_TECHNICIAN],
   },
   {
     from: RequestStatus.COMPLETED_BY_TECHNICIAN,
