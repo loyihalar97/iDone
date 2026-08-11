@@ -20,7 +20,11 @@ import { auditLogRouter } from "./modules/audit-log/audit-log.routes";
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
   app.use(cors({ origin: config.frontendOrigin, credentials: true }));
   app.use(express.json({ limit: "10mb" }));
   app.use(pinoHttp({ logger }));
