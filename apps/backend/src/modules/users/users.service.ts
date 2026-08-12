@@ -55,30 +55,36 @@ export const usersService = {
     return updated;
   },
 
+  /**
+   * Foydalanuvchini o'chiradi — HECH QANDAY CHEKLOVSIZ (rol/tarix/huquqdan
+   * qat'iy nazar). Yagona xavfsizlik: admin o'zini o'chira olmaydi (aks holda
+   * o'z sessiyasini buzadi va tizim qulflanib qolishi mumkin).
+   *
+   * Bog'liqliklar FK xatosini bermasligi uchun quyidagicha hal qilinadi:
+   *  - xodim YARATGAN zayavkalar o'chiruvchi adminga biriktiriladi (zayavka
+   *    ma'lumoti va tarixi saqlanadi — yo'qolmaydi);
+   *  - xodim biriktirilgan (texnik/bosh texnik) ishlar bo'shatiladi;
+   *  - xodimning shaxsiy bildirishnomalari va audit yozuvlari o'chiriladi.
+   */
   async remove(id: string, actorId: string) {
     if (id === actorId) {
-      throw AppError.validation("O'zingizni o'chira olmaysiz");
+      throw AppError.validation(
+        "O'zingizni o'chira olmaysiz. Boshqa superadmin orqali o'chiring."
+      );
     }
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw AppError.notFound("Foydalanuvchi topilmadi");
 
-    // Yaratilgan zayavkalar yoki audit yozuvlari bo'lsa — o'chirib bo'lmaydi
-    // (tarix buziladi). Bu holatda faolsizlantirish tavsiya etiladi.
-    const [createdCount, auditCount] = await Promise.all([
-      prisma.request.count({ where: { createdById: id } }),
-      prisma.auditLog.count({ where: { performedById: id } }),
-    ]);
-    if (createdCount > 0 || auditCount > 0) {
-      throw AppError.validation(
-        "Bu foydalanuvchi bilan bog'liq zayavka yoki harakatlar tarixi bor. O'chirish o'rniga uni faolsizlantiring."
-      );
-    }
-
-    // Bog'liq (nullable) biriktirishlarni bo'shatamiz va bildirishnomalarni o'chiramiz.
     await prisma.$transaction([
+      // Yaratgan zayavkalarini adminга o'tkazamiz (ma'lumot saqlanadi).
+      prisma.request.updateMany({ where: { createdById: id }, data: { createdById: actorId } }),
+      // Biriktirilgan ishlarni bo'shatamiz.
       prisma.request.updateMany({ where: { technicianId: id }, data: { technicianId: null } }),
       prisma.request.updateMany({ where: { chiefTechnicianId: id }, data: { chiefTechnicianId: null } }),
+      // Shaxsiy audit yozuvlari va bildirishnomalarni o'chiramiz.
+      prisma.auditLog.deleteMany({ where: { performedById: id } }),
       prisma.notification.deleteMany({ where: { userId: id } }),
+      // Foydalanuvchining o'zini o'chiramiz.
       prisma.user.delete({ where: { id } }),
     ]);
 
@@ -87,7 +93,7 @@ export const usersService = {
       entityId: id,
       action: "deleted",
       performedById: actorId,
-      metadata: { fullName: user.fullName, telegramId: user.telegramId },
+      metadata: { fullName: user.fullName, telegramId: user.telegramId, role: user.role },
     });
     return { success: true };
   },

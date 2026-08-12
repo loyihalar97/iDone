@@ -61,7 +61,9 @@ function UserRow({ user }: { user: UserItem }) {
 
   async function handleDelete() {
     const ok = await confirmDialog(
-      `"${user.fullName || user.telegramId}" foydalanuvchisini o'chirasizmi?`
+      `"${user.fullName || user.telegramId}" xodimini butunlay o'chirasizmi?\n\n` +
+        `Uning yaratgan zayavkalari administratorga o'tkaziladi, biriktirilgan ishlari bo'shatiladi. ` +
+        `Bu amalni ortga qaytarib bo'lmaydi.`
     );
     if (ok) deleteMutation.mutate();
   }
