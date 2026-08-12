@@ -1,0 +1,61 @@
+# ============================================================================
+# Lokal test uchun yagona (consolidated) setup: Postgres + bitta app servisi
+# (backend API + Telegram bot + frontend statik — hammasi bitta konteynerda).
+#
+# Ishga tushirish:
+#   TELEGRAM_BOT_TOKEN=... docker compose up --build
+# So'ng: http://localhost:4000
+#
+# Eslatma: lokal development uchun (hot-reload bilan) `npm run dev:backend`
+# va `npm run dev:frontend` ni ishlatgan qulayroq — bu compose esa
+# production'ga yaqin yagona-image variantini sinash uchun.
+# ============================================================================
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: texnik_xizmat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Frontend backend bilan bir originda — nisbiy /api
+        VITE_API_BASE_URL: /api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/texnik_xizmat
+      JWT_SECRET: dev_secret_change_me
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      PUBLIC_BASE_URL: http://localhost:4000
+      # Lokal test'da long-polling qulayroq (webhook uchun ochiq HTTPS domen kerak)
+      USE_WEBHOOK: "false"
+      STORAGE_DRIVER: local
+    ports:
+      - "4000:4000"
+    volumes:
+      - uploads_data:/app/uploads
+
+volumes:
+  postgres_data:
+  uploads_data:
