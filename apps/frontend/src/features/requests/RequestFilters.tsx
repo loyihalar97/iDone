@@ -28,19 +28,17 @@ export function RequestFiltersBar({ filters, onChange }: Props) {
   const hasExtraFilters = !!filters.branchId || !!filters.priority;
 
   return (
-    <div className="pt-2 pb-3">
+    <div className="pt-3 pb-3">
       <div className="px-4 flex items-center gap-2">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex-1 flex gap-0.5 bg-tg-secondaryBg border border-line rounded-control p-1 overflow-x-auto no-scrollbar">
           {STATUS_CHIPS.map((chip) => {
             const isActive = filters.status === chip.value;
             return (
               <button
                 key={chip.label}
                 onClick={() => onChange({ ...filters, status: chip.value })}
-                className={`flex-shrink-0 whitespace-nowrap text-sm font-semibold px-4 py-2 rounded-pill transition active:scale-[0.97] ${
-                  isActive
-                    ? "bg-accent text-white shadow-accent"
-                    : "bg-accentSoft text-accentDark"
+                className={`flex-1 flex-shrink-0 whitespace-nowrap text-[12.5px] font-bold px-3 py-2 rounded-[9px] transition ${
+                  isActive ? "bg-tg-text text-tg-bg" : "text-inkSoft"
                 }`}
               >
                 {chip.label}
@@ -50,14 +48,16 @@ export function RequestFiltersBar({ filters, onChange }: Props) {
         </div>
         <button
           onClick={() => setShowMore((v) => !v)}
-          className={`relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition ${
-            showMore || hasExtraFilters ? "bg-accentSoft text-accent" : "bg-tg-secondaryBg text-tg-hint"
+          className={`relative flex-shrink-0 w-10 h-10 rounded-control flex items-center justify-center transition border ${
+            showMore || hasExtraFilters
+              ? "bg-accentSoft text-accent border-transparent"
+              : "bg-tg-bg text-inkFaint border-line"
           }`}
           aria-label="Qo'shimcha filtrlar"
         >
-          <SlidersHorizontal size={16} strokeWidth={2} />
+          <SlidersHorizontal size={16} strokeWidth={2.25} />
           {hasExtraFilters && (
-            <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-accent" />
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
           )}
         </button>
       </div>

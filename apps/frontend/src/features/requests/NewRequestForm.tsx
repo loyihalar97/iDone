@@ -9,6 +9,13 @@ import { telegram } from "@/shared/telegram/webapp";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { Camera, Send } from "lucide-react";
 
+const PRIORITY_ACTIVE_STYLE: Record<Priority, string> = {
+  [Priority.LOW]: "border-priority-low bg-priority-low/10 text-priority-low",
+  [Priority.MEDIUM]: "border-priority-medium bg-priority-medium/10 text-priority-medium",
+  [Priority.HIGH]: "border-priority-high bg-priority-high/10 text-priority-high",
+  [Priority.CRITICAL]: "border-priority-critical bg-priority-critical/10 text-priority-critical",
+};
+
 export function NewRequestForm() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -88,19 +95,20 @@ export function NewRequestForm() {
       <Card>
         <Label>Muhimlik darajasi</Label>
         <div className="grid grid-cols-4 gap-2">
-          {Object.entries(PRIORITY_LABELS_UZ).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setPriority(value as Priority)}
-              className={`py-2 rounded-control text-xs font-medium border transition ${
-                priority === value
-                  ? "bg-tg-button text-tg-buttonText border-tg-button"
-                  : "border-line text-tg-text"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          {Object.entries(PRIORITY_LABELS_UZ).map(([value, label]) => {
+            const isActive = priority === value;
+            return (
+              <button
+                key={value}
+                onClick={() => setPriority(value as Priority)}
+                className={`py-2.5 rounded-control text-[12.5px] font-bold border-[1.5px] transition ${
+                  isActive ? PRIORITY_ACTIVE_STYLE[value as Priority] : "border-lineStrong text-inkSoft"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </Card>
 
@@ -118,8 +126,8 @@ export function NewRequestForm() {
 
       <Card>
         <Label>Muammo rasmi (majburiy)</Label>
-        <label className="flex items-center gap-2 border border-dashed border-lineStrong rounded-control px-3 py-2.5 text-sm text-tg-hint cursor-pointer">
-          <Camera size={16} strokeWidth={1.75} />
+        <label className="flex flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-lineStrong rounded-control px-3 py-6 text-center text-[12.5px] font-semibold text-inkFaint cursor-pointer">
+          <Camera size={20} strokeWidth={1.75} />
           {file ? file.name : "Rasm yoki video tanlang"}
           <input
             type="file"
@@ -134,7 +142,7 @@ export function NewRequestForm() {
         )}
       </Card>
 
-      {submitError && <p className="text-sm text-red-600 px-1">{submitError}</p>}
+      {submitError && <p className="text-sm font-medium text-priority-critical px-1">{submitError}</p>}
 
       <Button
         icon={Send}

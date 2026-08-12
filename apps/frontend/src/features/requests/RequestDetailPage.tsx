@@ -68,23 +68,23 @@ export function RequestDetailPage() {
   return (
     <div className="px-4 pb-8 pt-2 space-y-3">
       <Card>
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="font-semibold text-[15px] text-tg-text">{request.branch.name}</h2>
+        <div className="flex items-center justify-between mb-2.5">
+          <h2 className="font-extrabold text-[16px] text-tg-text tracking-tight2">{request.branch.name}</h2>
           <StatusBadge status={request.status} />
         </div>
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3.5">
           <PriorityBadge priority={request.priority} />
-          <span className="text-sm text-tg-hint">{CATEGORY_LABELS_UZ[request.category]}</span>
+          <span className="text-[13px] font-semibold text-tg-hint">{CATEGORY_LABELS_UZ[request.category]}</span>
         </div>
-        <p className="text-sm text-tg-text mb-3 leading-relaxed">{request.description}</p>
+        <p className="text-[14px] text-tg-text mb-3.5 leading-relaxed">{request.description}</p>
         <Thumb
           src={request.beforePhotoUrl}
           alt="Muammo"
-          className="w-full h-48 object-cover rounded-control mb-2"
+          className="w-full h-48 object-cover rounded-control mb-3"
         />
-        <p className="text-xs text-tg-hint">Yaratdi: {request.createdBy.fullName}</p>
+        <p className="text-[12px] font-medium text-inkFaint">Yaratdi: {request.createdBy.fullName}</p>
         {request.technician && (
-          <p className="text-xs text-tg-hint">Texnik: {request.technician.fullName}</p>
+          <p className="text-[12px] font-medium text-inkFaint">Texnik: {request.technician.fullName}</p>
         )}
       </Card>
 
@@ -134,8 +134,8 @@ export function RequestDetailPage() {
       {canComplete && (
         <Card>
           <Label>Natija rasmi (majburiy)</Label>
-          <label className="flex items-center gap-2 border border-dashed border-lineStrong rounded-control px-3 py-2.5 text-sm text-tg-hint cursor-pointer">
-            <Camera size={16} strokeWidth={1.75} />
+          <label className="flex flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-lineStrong rounded-control px-3 py-6 text-center text-[12.5px] font-semibold text-inkFaint cursor-pointer">
+            <Camera size={20} strokeWidth={1.75} />
             {afterFile ? afterFile.name : "Rasm yoki video tanlang"}
             <input
               type="file"

@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Role } from "@app/shared-types";
 import { usersApi, branchesApi, UserItem } from "@/shared/api";
-import { Card, Spinner, EmptyState, Select } from "@/shared/ui/primitives";
+import { Card, Spinner, EmptyState, Select, Button, StatusPill } from "@/shared/ui/primitives";
 import { telegram } from "@/shared/telegram/webapp";
-import { Users } from "lucide-react";
+import { Users, Check } from "lucide-react";
 
 const ROLE_LABELS: Record<Role, string> = {
   [Role.DIRECTOR]: "Filial direktori",
@@ -43,19 +43,18 @@ function UserRow({ user }: { user: UserItem }) {
   const needsBranch = role === Role.DIRECTOR || role === Role.TECHNICIAN;
 
   return (
-    <Card className="mb-3">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="font-medium text-tg-text text-sm">{user.fullName || "Ism ko'rsatilmagan"}</p>
-          <p className="text-xs text-tg-hint mt-0.5">Telegram ID: {user.telegramId}</p>
+    <Card className="mb-2.5">
+      <div className="flex items-start justify-between gap-2 mb-3.5">
+        <div className="min-w-0">
+          <p className="font-extrabold text-tg-text text-[14.5px] truncate">
+            {user.fullName || "Ism ko'rsatilmagan"}
+          </p>
+          <p className="font-num text-[11px] text-inkFaint mt-0.5">TG ID {user.telegramId}</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border border-line text-xs font-medium text-tg-text">
-          <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? "bg-status-directorAccepted" : "bg-status-closed"}`} />
-          {user.isActive ? "Faol" : "Faol emas"}
-        </span>
+        <StatusPill active={user.isActive} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 mb-2">
+      <div className="grid grid-cols-2 gap-2 mb-2.5">
         <Select value={role} onChange={(e) => setRole(e.target.value as Role)} className="text-xs py-2">
           {Object.entries(ROLE_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -77,20 +76,23 @@ function UserRow({ user }: { user: UserItem }) {
       </div>
 
       <div className="flex gap-2">
-        <button
-          onClick={() => roleMutation.mutate()}
+        <Button
+          variant="secondary"
+          icon={Check}
+          className="flex-1 !text-xs"
           disabled={roleMutation.isPending || (needsBranch && !branchId)}
-          className="flex-1 text-xs py-2 rounded-control bg-tg-button text-tg-buttonText disabled:opacity-40"
+          onClick={() => roleMutation.mutate()}
         >
           Saqlash
-        </button>
-        <button
-          onClick={() => activeMutation.mutate(!user.isActive)}
+        </Button>
+        <Button
+          variant="ghost"
+          className="flex-1 !text-xs !border !border-lineStrong"
           disabled={activeMutation.isPending}
-          className="flex-1 text-xs py-2 rounded-control border border-lineStrong text-tg-text"
+          onClick={() => activeMutation.mutate(!user.isActive)}
         >
           {user.isActive ? "Faolsizlantirish" : "Faollashtirish"}
-        </button>
+        </Button>
       </div>
     </Card>
   );
@@ -114,7 +116,7 @@ export function SuperadminUsersPage() {
 
   return (
     <div className="px-4 pt-2 pb-8">
-      <p className="text-xs text-tg-hint mb-3 px-1 leading-relaxed">
+      <p className="text-[12.5px] text-tg-hint mb-3.5 px-1 leading-relaxed">
         Yangi foydalanuvchi botga /start bosganda ro'yxatga avtomatik qo'shiladi, lekin superadmin
         rol tayinlab faollashtirmaguncha tizimga kira olmaydi.
       </p>

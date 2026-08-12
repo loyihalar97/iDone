@@ -33,13 +33,13 @@ const STATUS_TINT: Record<RequestStatus, string> = {
 };
 
 function Dot({ className }: { className: string }) {
-  return <span className={`w-1.5 h-1.5 rounded-full ${className}`} />;
+  return <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${className}`} />;
 }
 
 export function PriorityBadge({ priority }: { priority: Priority }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-semibold ${PRIORITY_TINT[priority]}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-bold ${PRIORITY_TINT[priority]}`}
     >
       <Dot className={PRIORITY_DOT[priority]} />
       {PRIORITY_LABELS_UZ[priority]}
@@ -50,10 +50,21 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
 export function StatusBadge({ status }: { status: RequestStatus }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-semibold ${STATUS_TINT[status]}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-bold ${STATUS_TINT[status]}`}
     >
       <Dot className={STATUS_DOT[status]} />
       {STATUS_LABELS_UZ[status]}
     </span>
   );
+}
+
+/** So'rov kartasining chap chetidagi rangli chiziq — ustuvorlikni bir qarashda ko'rsatadi. */
+export function priorityBarClass(priority: Priority): string {
+  const map: Record<Priority, string> = {
+    [Priority.LOW]: "before:bg-priority-low",
+    [Priority.MEDIUM]: "before:bg-priority-medium",
+    [Priority.HIGH]: "before:bg-priority-high",
+    [Priority.CRITICAL]: "before:bg-priority-critical",
+  };
+  return map[priority];
 }
