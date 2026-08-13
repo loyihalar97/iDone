@@ -60,6 +60,7 @@ export const STATUS_LABELS_UZ: Record<RequestStatus, string> = {
 export enum NotificationType {
   REQUEST_CREATED = "request_created",
   TECHNICIAN_ASSIGNED = "technician_assigned",
+  TECHNICIAN_STARTED = "technician_started",
   TECHNICIAN_COMPLETED = "technician_completed",
   CHIEF_APPROVED = "chief_approved",
   REQUEST_CLOSED = "request_closed",
