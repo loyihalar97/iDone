@@ -38,6 +38,9 @@ export const usersApi = {
   chiefTechnicians: () =>
     apiClient.get<{ id: string; fullName: string }[]>("/users/chief-technicians"),
 
+  techniciansOverview: () =>
+    apiClient.get<TechnicianOverview[]>("/users/technicians/overview"),
+
   assignRole: (id: string, data: { role: Role; branchId?: string | null; isActive?: boolean }) =>
     apiClient.patch<UserItem>(`/users/${id}/role`, data),
 
@@ -46,6 +49,17 @@ export const usersApi = {
 
   remove: (id: string) => apiClient.delete<{ success: boolean }>(`/users/${id}`),
 };
+
+export interface TechnicianOverview {
+  id: string;
+  fullName: string;
+  isActive: boolean;
+  branchName: string | null; // null — barcha filiallar
+  newCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  closedCount: number;
+}
 
 export interface TaskCategory {
   id: string;

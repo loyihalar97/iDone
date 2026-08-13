@@ -31,12 +31,17 @@ function UserRow({ user }: { user: UserItem }) {
     mutationFn: () =>
       usersApi.assignRole(user.id, {
         role,
+        // Texnik uchun bo'sh qiymat = barcha filiallar (null).
         branchId: role === Role.DIRECTOR || role === Role.TECHNICIAN ? branchId || null : null,
       }),
     onSuccess: () => {
       telegram.HapticFeedback.notificationOccurred("success");
       setEditing(false);
       invalidate();
+    },
+    onError: (err: any) => {
+      telegram.HapticFeedback.notificationOccurred("error");
+      telegram.showAlert(err?.response?.data?.error?.message ?? "Saqlab bo'lmadi");
     },
   });
 
@@ -57,7 +62,10 @@ function UserRow({ user }: { user: UserItem }) {
     },
   });
 
-  const needsBranch = role === Role.DIRECTOR || role === Role.TECHNICIAN;
+  // Direktor uchun filial MAJBURIY. Texnik uchun ixtiyoriy:
+  // tanlanmasa — texnik BARCHA filiallarga biriktiriladi.
+  const showsBranch = role === Role.DIRECTOR || role === Role.TECHNICIAN;
+  const branchRequired = role === Role.DIRECTOR;
 
   async function handleDelete() {
     const ok = await confirmDialog(
@@ -78,7 +86,11 @@ function UserRow({ user }: { user: UserItem }) {
           <p className="font-num text-[11px] text-inkFaint mt-0.5">TG ID {user.telegramId}</p>
           <p className="text-[12px] font-semibold text-tg-hint mt-1">
             {ROLE_LABELS[user.role]}
-            {user.branch?.name ? ` · ${user.branch.name}` : ""}
+            {user.branch?.name
+              ? ` · ${user.branch.name}`
+              : user.role === Role.TECHNICIAN
+                ? " · Barcha filiallar"
+                : ""}
           </p>
         </div>
         <StatusPill active={user.isActive} />
@@ -131,13 +143,15 @@ function UserRow({ user }: { user: UserItem }) {
               ))}
             </Select>
 
-            {needsBranch && (
+            {showsBranch && (
               <Select
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value)}
                 className="text-xs py-2"
               >
-                <option value="">Filial tanlang</option>
+                <option value="">
+                  {role === Role.TECHNICIAN ? "Barcha filiallar" : "Filial tanlang"}
+                </option>
                 {branches?.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -152,7 +166,7 @@ function UserRow({ user }: { user: UserItem }) {
               variant="secondary"
               icon={Check}
               className="flex-1 !text-xs"
-              disabled={roleMutation.isPending || (needsBranch && !branchId)}
+              disabled={roleMutation.isPending || (branchRequired && !branchId)}
               onClick={() => roleMutation.mutate()}
             >
               Saqlash

@@ -11,8 +11,9 @@ export const requestsRouter = Router();
 requestsRouter.use(requireAuth);
 
 const createSchema = z.object({
-  branchId: z.string().uuid(),
-  chiefTechnicianId: z.string().uuid().optional(),
+  // Direktor uchun filial serverda o'zining profilidan olinadi; Superadmin
+  // boshqa filial nomidan ochsa, branchId yuborishi mumkin.
+  branchId: z.string().uuid().optional(),
   category: z.string().min(1).max(60),
   description: z.string().min(3).max(2000),
   priority: z.nativeEnum(Priority),
@@ -50,6 +51,21 @@ requestsRouter.get(
   })
 );
 
+// Tarixni PDF/XLSX faylga eksport qilib, foydalanuvchining bot chatiga yuborish.
+// DIQQAT: "/:id" dan OLDIN ro'yxatga olinishi shart.
+const exportQuerySchema = listQuerySchema.extend({
+  format: z.enum(["pdf", "xlsx"]),
+});
+
+requestsRouter.get(
+  "/export",
+  asyncHandler(async (req, res) => {
+    const { format, page: _p, pageSize: _ps, ...filters } = exportQuerySchema.parse(req.query);
+    const result = await requestsService.exportHistory(filters as any, format, req.auth!);
+    res.json(result);
+  })
+);
+
 requestsRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
@@ -82,14 +98,34 @@ requestsRouter.patch(
 const statusSchema = z.object({
   status: z.nativeEnum(RequestStatus),
   afterPhotoUrl: z.string().url().optional(),
+  // Bosh texnik ishni yakunlashda kiritadigan harajat summasi (so'm, 0 mumkin).
+  expenseAmount: z.number().min(0).optional(),
 });
 
 requestsRouter.patch(
   "/:id/status",
   asyncHandler(async (req, res) => {
-    const { status, afterPhotoUrl } = statusSchema.parse(req.body);
-    const updated = await requestsService.changeStatus(req.params.id, status, req.auth!, afterPhotoUrl);
+    const { status, afterPhotoUrl, expenseAmount } = statusSchema.parse(req.body);
+    const updated = await requestsService.changeStatus(
+      req.params.id,
+      status,
+      req.auth!,
+      afterPhotoUrl,
+      expenseAmount
+    );
     res.json(updated);
+  })
+);
+
+// Bosh texnik zayavkalar ketma-ketligini drag-and-drop orqali tartiblaydi.
+const reorderSchema = z.object({ orderedIds: z.array(z.string().uuid()).min(1).max(500) });
+
+requestsRouter.patch(
+  "/reorder",
+  requireRole(Role.CHIEF_TECHNICIAN, Role.SUPERADMIN),
+  asyncHandler(async (req, res) => {
+    const { orderedIds } = reorderSchema.parse(req.body);
+    res.json(await requestsService.reorder(orderedIds, req.auth!));
   })
 );
 

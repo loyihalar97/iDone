@@ -24,14 +24,15 @@ Joriy foydalanuvchi ma'lumotlari.
 ### `POST /requests` — Direktor
 ```json
 {
-  "branchId": "uuid",
-  "chiefTechnicianId": "uuid (ixtiyoriy)",
+  "branchId": "uuid (faqat Superadmin uchun; Direktorda o'z filialidan olinadi)",
   "category": "electrical | plumbing | ac | kitchen_equipment | it_equipment | furniture | other",
   "description": "string",
   "priority": "low | medium | high | critical",
   "beforePhotoUrl": "https://..."
 }
 ```
+> Direktorga filial biriktirilmagan bo'lsa zayavka ochilmaydi (400 xato).
+> Bosh texnik AVTOMATIK belgilanadi (tizimdagi yagona faol Bosh texnik).
 
 ### `GET /requests`
 Query: `branchId, status, priority, category, technicianId, dateFrom, dateTo, page, pageSize`
@@ -49,10 +50,26 @@ Rol asosida avtomatik filtrlanadi (Direktor faqat o'z filialini, Texnik faqat o'
 ```json
 {
   "status": "in_progress | completed_by_technician | approved_by_chief_technician | accepted_by_director",
-  "afterPhotoUrl": "https://... (completed_by_technician uchun majburiy)"
+  "afterPhotoUrl": "https://... (completed_by_technician uchun majburiy — Texnik yuklaydi)",
+  "expenseAmount": 150000
 }
 ```
 > `closed` statusiga qo'lda o'tish taqiqlangan — u faqat `accepted_by_director`dan keyin avtomatik qo'yiladi.
+> `approved_by_chief_technician` (Bosh texnik "Ishni yakunlash") uchun `expenseAmount` MAJBURIY —
+> harajat bo'lmagan bo'lsa `0` yuboriladi.
+> Oqim: Texnik `in_progress` (Bosh texnikka xabar) → Texnik `completed_by_technician` (Bosh texnikka xabar)
+> → Bosh texnik `approved_by_chief_technician` (Direktorga xabar) → Direktor `accepted_by_director` → avtomatik `closed`.
+
+### `PATCH /requests/reorder` — Bosh texnik
+```json
+{ "orderedIds": ["uuid", "uuid", "..."] }
+```
+Zayavkalarning drag-and-drop tartibini saqlaydi (`sortOrder`). Ro'yxatlar `sortOrder ASC, createdAt DESC` bo'yicha qaytadi.
+
+### `GET /requests/export?format=pdf|xlsx` — barcha rollar
+Query: `format` (majburiy) + `GET /requests` filtrlari. Rol doirasidagi tarixni PDF yoki XLSX
+faylga eksport qilib, so'rov yuborgan foydalanuvchining **Telegram bot chatiga hujjat** sifatida yuboradi.
+**Response:** `{ "success": true, "count": 42 }`
 
 ### `DELETE /requests/:id` — Superadmin
 Zayavkani (tarix yozuvini) butunlay o'chiradi. Status tarixi cascade orqali,
@@ -79,9 +96,10 @@ bildirishnomalar `SET NULL` orqali tozalanadi; rasm fayllari o'chiriladi.
 ## Users
 
 - `GET /users?role=&branchId=&isActive=` — Superadmin, Bosh texnik
-- `GET /users/technicians?branchId=` — Bosh texnik, Superadmin
+- `GET /users/technicians?branchId=` — Bosh texnik, Superadmin — filial texniklari + barcha filiallarga biriktirilgan (branchId=null) texniklar
+- `GET /users/technicians/overview` — Bosh texnik, Superadmin — texniklar nazorati (har birining ish yuklamasi kesimi)
 - `GET /users/chief-technicians` — Direktor, Superadmin
-- `PATCH /users/:id/role` — Superadmin — `{ role, branchId?, isActive? }`
+- `PATCH /users/:id/role` — Superadmin — `{ role, branchId?, isActive? }` — Direktor uchun filial majburiy; Texnikda `branchId: null` = **barcha filiallar**; faol Bosh texnik faqat bitta bo'lishi mumkin
 - `PATCH /users/:id/active` — Superadmin — `{ isActive }`
 - `DELETE /users/:id` — Superadmin — yaratgan zayavkasi/audit tarixi bo'lsa xato qaytadi (faolsizlantiring)
 

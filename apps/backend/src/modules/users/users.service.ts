@@ -20,8 +20,24 @@ export const usersService = {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw AppError.notFound("Foydalanuvchi topilmadi");
 
-    if ((data.role === Role.DIRECTOR || data.role === Role.TECHNICIAN) && !data.branchId && !user.branchId) {
-      throw AppError.validation("Direktor va Texnik uchun filial belgilanishi shart");
+    // Direktor uchun filial majburiy. Texnik uchun esa ixtiyoriy:
+    // filial berilmasa (null) — texnik BARCHA filiallarga biriktirilgan hisoblanadi.
+    if (data.role === Role.DIRECTOR && !data.branchId && !user.branchId) {
+      throw AppError.validation("Direktor uchun filial belgilanishi shart");
+    }
+
+    // Tizimda faqat BITTA faol Bosh texnik bo'lishi mumkin — zayavkalar unga
+    // avtomatik biriktiriladi.
+    if (data.role === Role.CHIEF_TECHNICIAN && (data.isActive ?? user.isActive)) {
+      const existingChief = await prisma.user.findFirst({
+        where: { role: Role.CHIEF_TECHNICIAN, isActive: true, id: { not: id } },
+      });
+      if (existingChief) {
+        throw AppError.validation(
+          `Tizimda allaqachon faol Bosh texnik bor: ${existingChief.fullName}. ` +
+            `Avval uni boshqa rolga o'tkazing yoki nofaol qiling.`
+        );
+      }
     }
 
     const updated = await prisma.user.update({
@@ -45,6 +61,19 @@ export const usersService = {
   },
 
   async setActive(id: string, isActive: boolean, actorId: string) {
+    if (isActive) {
+      const user = await prisma.user.findUnique({ where: { id } });
+      if (user?.role === Role.CHIEF_TECHNICIAN) {
+        const existingChief = await prisma.user.findFirst({
+          where: { role: Role.CHIEF_TECHNICIAN, isActive: true, id: { not: id } },
+        });
+        if (existingChief) {
+          throw AppError.validation(
+            `Tizimda allaqachon faol Bosh texnik bor: ${existingChief.fullName}.`
+          );
+        }
+      }
+    }
     const updated = await prisma.user.update({ where: { id }, data: { isActive } });
     await auditLogService.log({
       entityType: "user",
@@ -100,8 +129,48 @@ export const usersService = {
 
   listTechnicians(branchId?: string) {
     return prisma.user.findMany({
-      where: { role: Role.TECHNICIAN, isActive: true, ...(branchId ? { branchId } : {}) },
+      where: {
+        role: Role.TECHNICIAN,
+        isActive: true,
+        // branchId berilsa — shu filial texniklari + barcha filiallarga
+        // biriktirilgan (branchId = null) texniklar qaytariladi.
+        ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
+      },
       select: { id: true, fullName: true, branchId: true },
+    });
+  },
+
+  /**
+   * Bosh texnik uchun texniklar nazorati: har bir texnikning filiali va
+   * unga biriktirilgan ishlar kesimi (yangi, jarayonda, yakunlangan, yopilgan).
+   */
+  async techniciansOverview() {
+    const technicians = await prisma.user.findMany({
+      where: { role: Role.TECHNICIAN },
+      include: { branch: { select: { name: true } } },
+      orderBy: { fullName: "asc" },
+    });
+
+    const grouped = await prisma.request.groupBy({
+      by: ["technicianId", "status"],
+      where: { technicianId: { not: null } },
+      _count: { _all: true },
+    });
+
+    return technicians.map((t) => {
+      const rows = grouped.filter((g) => g.technicianId === t.id);
+      const count = (statuses: string[]) =>
+        rows.filter((r) => statuses.includes(r.status)).reduce((sum, r) => sum + r._count._all, 0);
+      return {
+        id: t.id,
+        fullName: t.fullName,
+        isActive: t.isActive,
+        branchName: t.branch?.name ?? null, // null — barcha filiallar
+        newCount: count(["new"]),
+        inProgressCount: count(["in_progress"]),
+        completedCount: count(["completed_by_technician", "approved_by_chief_technician", "accepted_by_director"]),
+        closedCount: count(["closed"]),
+      };
     });
   },
 

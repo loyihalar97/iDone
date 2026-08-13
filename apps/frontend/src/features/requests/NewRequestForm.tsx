@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Priority, PRIORITY_LABELS_UZ } from "@app/shared-types";
 import { requestsApi, mediaApi } from "@/shared/api/requests";
-import { usersApi } from "@/shared/api";
 import { useCategoryOptions } from "@/shared/hooks/useCategories";
-import { Button, Card, Label, Select, Textarea, Thumb } from "@/shared/ui/primitives";
+import { Button, Card, EmptyState, Label, Select, Textarea, Thumb } from "@/shared/ui/primitives";
 import { telegram } from "@/shared/telegram/webapp";
 import { useAuth } from "@/shared/hooks/useAuth";
-import { Camera, Send } from "lucide-react";
+import { Camera, Send, Building2 } from "lucide-react";
 
 const PRIORITY_ACTIVE_STYLE: Record<Priority, string> = {
   [Priority.LOW]: "border-priority-low bg-priority-low/10 text-priority-low",
@@ -25,7 +24,6 @@ export function NewRequestForm() {
   const [category, setCategory] = useState<string>("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>(Priority.MEDIUM);
-  const [chiefTechnicianId, setChiefTechnicianId] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -39,20 +37,13 @@ export function NewRequestForm() {
     }
   }, [categories, category]);
 
-  const { data: chiefTechnicians } = useQuery({
-    queryKey: ["chief-technicians"],
-    queryFn: () => usersApi.chiefTechnicians().then((r) => r.data),
-  });
-
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("Muammo rasmi majburiy");
-      if (!user?.branchId) throw new Error("Sizga filial biriktirilmagan");
 
       const { data: uploaded } = await mediaApi.upload(file);
+      // Filial serverda direktor profilidan olinadi; Bosh texnik avtomatik belgilanadi.
       return requestsApi.create({
-        branchId: user.branchId,
-        chiefTechnicianId: chiefTechnicianId || undefined,
         category,
         description,
         priority,
@@ -78,6 +69,18 @@ export function NewRequestForm() {
   }
 
   const isValid = description.trim().length >= 3 && !!file && !!category;
+
+  // Filial Superadmin tomonidan biriktiriladi — biriktirilmagan direktor
+  // zayavka ocha olmaydi.
+  if (!user?.branchId) {
+    return (
+      <EmptyState
+        title="Sizga filial biriktirilmagan"
+        subtitle="Zayavka ochish uchun Superadmin sizga filial biriktirishi kerak. Administratorga murojaat qiling."
+        icon={Building2}
+      />
+    );
+  }
 
   return (
     <div className="px-4 pb-8 pt-2 space-y-3">
@@ -120,18 +123,6 @@ export function NewRequestForm() {
             );
           })}
         </div>
-      </Card>
-
-      <Card>
-        <Label>Bosh texnik (ixtiyoriy)</Label>
-        <Select value={chiefTechnicianId} onChange={(e) => setChiefTechnicianId(e.target.value)}>
-          <option value="">Avtomatik — barcha bosh texniklarga yuboriladi</option>
-          {chiefTechnicians?.map((ct) => (
-            <option key={ct.id} value={ct.id}>
-              {ct.fullName}
-            </option>
-          ))}
-        </Select>
       </Card>
 
       <Card>

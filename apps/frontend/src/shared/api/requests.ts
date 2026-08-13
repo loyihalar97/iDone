@@ -14,6 +14,8 @@ export interface RequestItem {
   status: RequestStatus;
   beforePhotoUrl: string;
   afterPhotoUrl: string | null;
+  expenseAmount: number | null;
+  sortOrder: number;
   createdAt: string;
   closedAt: string | null;
 }
@@ -42,8 +44,6 @@ export const requestsApi = {
   getById: (id: string) => apiClient.get<RequestItem>(`/requests/${id}`),
 
   create: (data: {
-    branchId: string;
-    chiefTechnicianId?: string;
     category: string;
     description: string;
     priority: Priority;
@@ -53,8 +53,18 @@ export const requestsApi = {
   assignTechnician: (id: string, technicianId: string) =>
     apiClient.patch<RequestItem>(`/requests/${id}/assign`, { technicianId }),
 
-  changeStatus: (id: string, status: RequestStatus, afterPhotoUrl?: string) =>
-    apiClient.patch<RequestItem>(`/requests/${id}/status`, { status, afterPhotoUrl }),
+  changeStatus: (id: string, status: RequestStatus, afterPhotoUrl?: string, expenseAmount?: number) =>
+    apiClient.patch<RequestItem>(`/requests/${id}/status`, { status, afterPhotoUrl, expenseAmount }),
+
+  // Bosh texnik drag-and-drop orqali ish ketma-ketligini saqlaydi.
+  reorder: (orderedIds: string[]) =>
+    apiClient.patch<{ success: boolean }>("/requests/reorder", { orderedIds }),
+
+  // Tarixni PDF/XLSX faylga eksport qilib, bot chatiga yuboradi.
+  exportHistory: (format: "pdf" | "xlsx", filters: RequestFilters = {}) =>
+    apiClient.get<{ success: boolean; count: number }>("/requests/export", {
+      params: { ...filters, format, page: undefined, pageSize: undefined },
+    }),
 
   history: (id: string) => apiClient.get(`/requests/${id}/history`),
 

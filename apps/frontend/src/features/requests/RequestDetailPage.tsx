@@ -9,7 +9,7 @@ import { PriorityBadge, StatusBadge } from "@/shared/ui/Badges";
 import { useCategoryLabels } from "@/shared/hooks/useCategories";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { telegram } from "@/shared/telegram/webapp";
-import { Camera, Play, UserPlus, CheckCheck, PackageCheck } from "lucide-react";
+import { Camera, Play, UserPlus, CheckCheck, PackageCheck, Banknote } from "lucide-react";
 
 export function RequestDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +18,8 @@ export function RequestDetailPage() {
   const queryClient = useQueryClient();
   const [afterFile, setAfterFile] = useState<File | null>(null);
   const [selectedTechnicianId, setSelectedTechnicianId] = useState("");
+  // Bosh texnik "Ishni yakunlash"da kiritadigan harajat summasi (majburiy, 0 mumkin).
+  const [expenseInput, setExpenseInput] = useState("");
 
   const { data: request, isLoading } = useQuery({
     queryKey: ["requests", id],
@@ -42,30 +44,56 @@ export function RequestDetailPage() {
   const statusMutation = useMutation({
     mutationFn: async (nextStatus: RequestStatus) => {
       let afterPhotoUrl: string | undefined;
+      let expenseAmount: number | undefined;
       if (nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN) {
         if (!afterFile) throw new Error("Natija rasmi majburiy");
         const { data } = await mediaApi.upload(afterFile);
         afterPhotoUrl = data.url;
       }
-      return requestsApi.changeStatus(id!, nextStatus, afterPhotoUrl);
+      if (nextStatus === RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN) {
+        const parsed = Number(expenseInput.replace(/\s/g, ""));
+        if (expenseInput.trim() === "" || Number.isNaN(parsed) || parsed < 0) {
+          throw new Error("Harajat summasini kiriting. Harajat bo'lmasa 0 kiriting.");
+        }
+        expenseAmount = parsed;
+      }
+      return requestsApi.changeStatus(id!, nextStatus, afterPhotoUrl, expenseAmount);
     },
     onSuccess: () => {
       telegram.HapticFeedback.notificationOccurred("success");
       queryClient.invalidateQueries({ queryKey: ["requests", id] });
       queryClient.invalidateQueries({ queryKey: ["requests"] });
     },
-    onError: () => telegram.HapticFeedback.notificationOccurred("error"),
+    onError: (err: any) => {
+      telegram.HapticFeedback.notificationOccurred("error");
+      telegram.showAlert(err?.response?.data?.error?.message ?? err.message ?? "Xatolik yuz berdi");
+    },
   });
 
   if (isLoading || !request) return <Spinner label="Yuklanmoqda..." />;
 
+  const isAssignedTechnician =
+    user?.role === Role.TECHNICIAN && request.technician?.id === user.id;
+
   const canAssign = user?.role === Role.CHIEF_TECHNICIAN && request.status === RequestStatus.NEW;
+  // Texnik (biriktirilgan bo'lsa) yoki Bosh texnik ishni boshlaydi.
   const canStart =
-    (user?.role === Role.TECHNICIAN || user?.role === Role.CHIEF_TECHNICIAN) &&
+    (isAssignedTechnician || user?.role === Role.CHIEF_TECHNICIAN) &&
     request.status === RequestStatus.NEW;
-  const canComplete = user?.role === Role.CHIEF_TECHNICIAN && request.status === RequestStatus.IN_PROGRESS;
+  // Texnik ishni tugatib, natija rasmi bilan yakunlaydi (Bosh texnik ham mumkin).
+  const canComplete =
+    (isAssignedTechnician || user?.role === Role.CHIEF_TECHNICIAN) &&
+    request.status === RequestStatus.IN_PROGRESS;
+  // Bosh texnik harajat summasini kiritib ishni yakunlaydi.
+  const canChiefFinish =
+    user?.role === Role.CHIEF_TECHNICIAN && request.status === RequestStatus.COMPLETED_BY_TECHNICIAN;
   const canDirectorAccept =
     user?.role === Role.DIRECTOR && request.status === RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN;
+
+  const expenseValid = (() => {
+    const parsed = Number(expenseInput.replace(/\s/g, ""));
+    return expenseInput.trim() !== "" && !Number.isNaN(parsed) && parsed >= 0;
+  })();
 
   return (
     <div className="px-4 pb-8 pt-2 space-y-3">
@@ -85,8 +113,18 @@ export function RequestDetailPage() {
           className="w-full h-48 object-cover rounded-control mb-3"
         />
         <p className="text-[12px] font-medium text-inkFaint">Yaratdi: {request.createdBy.fullName}</p>
+        {request.chiefTechnician && (
+          <p className="text-[12px] font-medium text-inkFaint">
+            Bosh texnik: {request.chiefTechnician.fullName}
+          </p>
+        )}
         {request.technician && (
           <p className="text-[12px] font-medium text-inkFaint">Texnik: {request.technician.fullName}</p>
+        )}
+        {request.expenseAmount !== null && request.expenseAmount !== undefined && (
+          <p className="text-[12px] font-bold text-tg-text mt-1">
+            💵 Harajat: {request.expenseAmount.toLocaleString("uz-UZ")} so'm
+          </p>
         )}
       </Card>
 
@@ -128,7 +166,12 @@ export function RequestDetailPage() {
       )}
 
       {canStart && (
-        <Button icon={Play} className="w-full" onClick={() => statusMutation.mutate(RequestStatus.IN_PROGRESS)}>
+        <Button
+          icon={Play}
+          className="w-full"
+          disabled={statusMutation.isPending}
+          onClick={() => statusMutation.mutate(RequestStatus.IN_PROGRESS)}
+        >
           Ishni boshlash
         </Button>
       )}
@@ -153,7 +196,43 @@ export function RequestDetailPage() {
             disabled={!afterFile || statusMutation.isPending}
             onClick={() => statusMutation.mutate(RequestStatus.COMPLETED_BY_TECHNICIAN)}
           >
-            {statusMutation.isPending ? "Yuborilmoqda..." : "Tugatildi"}
+            {statusMutation.isPending ? "Yuborilmoqda..." : "Ishni yakunlash"}
+          </Button>
+        </Card>
+      )}
+
+      {canChiefFinish && (
+        <Card>
+          <Label>Ishlatilgan harajatlar summasi (majburiy)</Label>
+          <div className="relative mb-1">
+            <Banknote
+              size={16}
+              strokeWidth={1.75}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-inkFaint"
+            />
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={expenseInput}
+              onChange={(e) => setExpenseInput(e.target.value)}
+              placeholder="Masalan: 150000 (harajat bo'lmasa 0)"
+              className="w-full bg-tg-secondaryBg border border-line rounded-control pl-9 pr-14 py-2.5 text-[14px] font-semibold text-tg-text outline-none focus:border-accent"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-inkFaint">
+              so'm
+            </span>
+          </div>
+          <p className="text-[11.5px] text-tg-hint mb-3">
+            Harajat bo'lmagan bo'lsa 0 kiriting. Summasiz ishni yakunlab bo'lmaydi.
+          </p>
+          <Button
+            icon={CheckCheck}
+            className="w-full"
+            disabled={!expenseValid || statusMutation.isPending}
+            onClick={() => statusMutation.mutate(RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN)}
+          >
+            {statusMutation.isPending ? "Yuborilmoqda..." : "Ishni yakunlash"}
           </Button>
         </Card>
       )}

@@ -33,6 +33,7 @@ enum Priority {
 enum NotificationType {
   request_created
   technician_assigned
+  technician_started
   technician_completed
   chief_approved
   request_closed
@@ -92,6 +93,15 @@ model Request {
 
   beforePhotoUrl      String?       @map("before_photo_url")
   afterPhotoUrl       String?       @map("after_photo_url")
+
+  // Bosh texnik ishni yakunlashda kiritadigan harajat summasi (so'mda).
+  // Harajat bo'lmasa 0 kiritiladi. Null — hali kiritilmagan degani.
+  expenseAmount       Float?        @map("expense_amount")
+
+  // Bosh texnik drag-and-drop orqali belgilaydigan ish ketma-ketligi.
+  // Kichik qiymat — ro'yxatda yuqoriroq o'rin. Yangi zayavkalar 0 bilan
+  // yaratiladi va tepada ko'rinadi.
+  sortOrder           Int           @default(0) @map("sort_order")
 
   createdAt           DateTime      @default(now()) @map("created_at")
   updatedAt           DateTime      @updatedAt @map("updated_at")

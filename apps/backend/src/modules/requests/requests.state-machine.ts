@@ -13,17 +13,21 @@ type Transition = {
  * u faqat avtomatik logika orqali (chiefApproved && directorAccepted) qo'yiladi.
  */
 const TRANSITIONS: Transition[] = [
+  // Texnik "Ishni boshlash" bosadi (Bosh texnik ham boshlashi mumkin).
   { from: RequestStatus.NEW, to: RequestStatus.IN_PROGRESS, allowedRoles: [Role.TECHNICIAN, Role.CHIEF_TECHNICIAN] },
+  // Texnik ishni tugatib, natija rasmi bilan "Ishni yakunlash" bosadi.
   {
     from: RequestStatus.IN_PROGRESS,
     to: RequestStatus.COMPLETED_BY_TECHNICIAN,
-    allowedRoles: [Role.CHIEF_TECHNICIAN],
+    allowedRoles: [Role.TECHNICIAN, Role.CHIEF_TECHNICIAN],
   },
+  // Bosh texnik harajat summasini kiritib "Ishni yakunlash" bosadi.
   {
     from: RequestStatus.COMPLETED_BY_TECHNICIAN,
     to: RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN,
     allowedRoles: [Role.CHIEF_TECHNICIAN],
   },
+  // Direktor ishni qabul qilib zayavkani yopadi.
   {
     from: RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN,
     to: RequestStatus.ACCEPTED_BY_DIRECTOR,

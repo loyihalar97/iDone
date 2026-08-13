@@ -99,6 +99,34 @@ export const notificationsService = {
     }
   },
 
+  /**
+   * Foydalanuvchining bot chatiga hujjat (PDF/XLSX) yuboradi.
+   * History eksporti shu orqali yetkaziladi.
+   */
+  async sendDocumentToUser(userId: string, file: Buffer, filename: string, mimeType: string, caption?: string) {
+    if (!config.telegramBotToken) {
+      throw new Error("TELEGRAM_BOT_TOKEN sozlanmagan — hujjat yuborib bo'lmadi");
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.telegramId) {
+      throw new Error("Foydalanuvchining Telegram ID'si topilmadi");
+    }
+
+    const form = new FormData();
+    form.append("chat_id", user.telegramId);
+    form.append("document", new Blob([new Uint8Array(file)], { type: mimeType }), filename);
+    if (caption) form.append("caption", caption);
+
+    const response = await fetch(
+      `${TELEGRAM_API_BASE}/bot${config.telegramBotToken}/sendDocument`,
+      { method: "POST", body: form }
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Telegram sendDocument xatosi (${response.status}): ${body}`);
+    }
+  },
+
   async listForUser(userId: string, unreadOnly = false) {
     return prisma.notification.findMany({
       where: { userId, ...(unreadOnly ? { isRead: false } : {}) },

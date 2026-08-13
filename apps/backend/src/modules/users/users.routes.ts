@@ -32,6 +32,16 @@ usersRouter.get(
   })
 );
 
+// Bosh texnik uchun texniklar nazorati (yuklama kesimi bilan).
+usersRouter.get(
+  "/technicians/overview",
+  requireAuth,
+  requireRole(Role.CHIEF_TECHNICIAN, Role.SUPERADMIN),
+  asyncHandler(async (_req, res) => {
+    res.json(await usersService.techniciansOverview());
+  })
+);
+
 usersRouter.get(
   "/chief-technicians",
   requireAuth,

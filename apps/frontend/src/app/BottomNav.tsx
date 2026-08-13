@@ -26,6 +26,7 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   ],
   [Role.CHIEF_TECHNICIAN]: [
     { to: "/chief/requests", label: "Zayavkalar", icon: ListChecks },
+    { to: "/chief/technicians", label: "Texniklar", icon: Users },
     { to: "/chief/dashboard", label: "Statistika", icon: BarChart3 },
   ],
   [Role.TECHNICIAN]: [

@@ -11,6 +11,7 @@ import { AppError } from "../../core/errors/AppError";
 import { prisma } from "../../core/database/prisma";
 import { requestsRepository, RequestFilters } from "./requests.repository";
 import { assertValidTransition, shouldAutoClose } from "./requests.state-machine";
+import { buildPdf, buildXlsx, ExportRow } from "./requests.export";
 import { auditLogService } from "../audit-log/audit-log.service";
 import { categoriesService } from "../categories/categories.service";
 import { notificationsService } from "../notifications/notifications.service";
@@ -18,8 +19,7 @@ import { mediaService } from "../media/media.service";
 import type { AuthTokenPayload } from "../auth/auth.service";
 
 interface CreateRequestInput {
-  branchId: string;
-  chiefTechnicianId?: string;
+  branchId?: string;
   category: string;
   description: string;
   priority: string;
@@ -56,6 +56,9 @@ function buildRequestCardHtml(
   if (request.technician) {
     lines.push(`🔧 <b>Texnik:</b> ${escapeHtml(request.technician.fullName)}`);
   }
+  if (request.expenseAmount !== null && request.expenseAmount !== undefined) {
+    lines.push(`💵 <b>Harajat:</b> ${Number(request.expenseAmount).toLocaleString("uz-UZ")} so'm`);
+  }
   lines.push(`📌 <b>Holat:</b> ${STATUS_LABELS_UZ[request.status as RequestStatus]}`);
   return lines.join("\n");
 }
@@ -66,10 +69,32 @@ export const requestsService = {
       throw AppError.forbidden("Faqat filial direktori zayavka yarata oladi");
     }
 
+    // Direktor faqat O'Z filialiga zayavka ochadi. Filial Superadmin tomonidan
+    // biriktiriladi — biriktirilmagan bo'lsa, zayavka ochish taqiqlanadi.
+    let branchId = input.branchId;
+    if (actor.role === Role.DIRECTOR) {
+      const director = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
+      if (!director.branchId) {
+        throw AppError.validation(
+          "Sizga filial biriktirilmagan. Zayavka ochish uchun Superadminga murojaat qiling."
+        );
+      }
+      branchId = director.branchId;
+    }
+    if (!branchId) {
+      throw AppError.validation("Filial ko'rsatilishi shart");
+    }
+
+    // Bosh texnik AVTOMATIK belgilanadi — tizimda bitta faol Bosh texnik bo'ladi.
+    const chief = await prisma.user.findFirst({
+      where: { role: Role.CHIEF_TECHNICIAN, isActive: true },
+      orderBy: { createdAt: "asc" },
+    });
+
     const request = await requestsRepository.create({
-      branchId: input.branchId,
+      branchId,
       createdById: actor.userId,
-      chiefTechnicianId: input.chiefTechnicianId,
+      chiefTechnicianId: chief?.id,
       category: input.category as any,
       description: input.description,
       priority: input.priority as any,
@@ -84,7 +109,7 @@ export const requestsService = {
       entityId: request.id,
       action: "created",
       performedById: actor.userId,
-      metadata: { branchId: input.branchId, priority: input.priority },
+      metadata: { branchId, priority: input.priority },
     });
 
     // Zayavka ochilganda Direktor va Bosh texnikka formatlangan, rasmli xabar yuboriladi.
@@ -101,14 +126,10 @@ export const requestsService = {
       html: true,
     });
 
-    const chiefTechnicians = request.chiefTechnicianId
-      ? [request.chiefTechnician]
-      : await prisma.user.findMany({ where: { role: Role.CHIEF_TECHNICIAN, isActive: true } });
-
-    for (const ct of chiefTechnicians) {
-      if (!ct) continue;
+    // Avtomatik belgilangan Bosh texnikka xabar boradi.
+    if (request.chiefTechnician) {
       await notificationsService.notify({
-        userId: ct.id,
+        userId: request.chiefTechnician.id,
         requestId: request.id,
         type: NotificationType.REQUEST_CREATED,
         text: openCardText,
@@ -179,7 +200,8 @@ export const requestsService = {
     requestId: string,
     nextStatus: RequestStatus,
     actor: AuthTokenPayload,
-    afterPhotoUrl?: string
+    afterPhotoUrl?: string,
+    expenseAmount?: number
   ) {
     const request = await requestsRepository.findById(requestId);
     if (!request) throw AppError.notFound("Zayavka topilmadi");
@@ -188,8 +210,24 @@ export const requestsService = {
 
     assertValidTransition(request.status as RequestStatus, nextStatus, actor.role);
 
+    // Texnik ishni yakunlashda natija rasmi majburiy.
     if (nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN && !afterPhotoUrl && !request.afterPhotoUrl) {
       throw AppError.validation("Ish yakunlangandan keyingi natija rasmi majburiy");
+    }
+
+    // Bosh texnik "Ishni yakunlash" bosishdan oldin ishlatilgan harajatlar
+    // summasini kiritishi MAJBURIY (harajat bo'lmasa 0 kiritiladi).
+    if (
+      nextStatus === RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN &&
+      expenseAmount === undefined &&
+      request.expenseAmount === null
+    ) {
+      throw AppError.validation(
+        "Ishlatilgan harajatlar summasini kiriting. Harajat bo'lmagan bo'lsa 0 kiriting."
+      );
+    }
+    if (expenseAmount !== undefined && expenseAmount < 0) {
+      throw AppError.validation("Harajat summasi manfiy bo'lishi mumkin emas");
     }
 
     const willAutoClose = shouldAutoClose(nextStatus);
@@ -199,6 +237,7 @@ export const requestsService = {
       nextStatus as PrismaRequestStatus,
       {
         afterPhotoUrl: afterPhotoUrl ?? request.afterPhotoUrl ?? undefined,
+        ...(expenseAmount !== undefined ? { expenseAmount } : {}),
         ...(willAutoClose ? { closedAt: new Date() } : {}),
       }
     );
@@ -211,24 +250,6 @@ export const requestsService = {
     );
 
     let finalRequest = updated;
-
-    // Bosh texnik "Tugatildi" bossa, alohida "Tasdiqlash" bosqichi kerak emas —
-    // tizim avtomatik ravishda tasdiqlangan deb belgilaydi va Direktorga xabar boradi.
-    const autoApprove =
-      nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN && actor.role === Role.CHIEF_TECHNICIAN;
-
-    if (autoApprove) {
-      finalRequest = await requestsRepository.updateStatus(
-        requestId,
-        RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN as PrismaRequestStatus
-      );
-      await requestsRepository.addStatusHistory(
-        requestId,
-        RequestStatus.COMPLETED_BY_TECHNICIAN as PrismaRequestStatus,
-        RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN as PrismaRequestStatus,
-        actor.userId
-      );
-    }
 
     if (willAutoClose) {
       finalRequest = await requestsRepository.updateStatus(requestId, PrismaRequestStatus.closed);
@@ -245,24 +266,65 @@ export const requestsService = {
       entityId: requestId,
       action: `status_changed_to_${nextStatus}`,
       performedById: actor.userId,
+      ...(expenseAmount !== undefined ? { metadata: { expenseAmount } } : {}),
     });
 
-    await this.notifyOnStatusChange(finalRequest, autoApprove ? RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN : nextStatus);
+    await this.notifyOnStatusChange(finalRequest, nextStatus, actor);
 
     return finalRequest;
   },
 
-  async notifyOnStatusChange(request: Awaited<ReturnType<typeof requestsRepository.findById>>, nextStatus: RequestStatus) {
+  /**
+   * Bosh texnik ochiq zayavkalarni drag-and-drop orqali o'z ixtiyoriga ko'ra
+   * tartiblaydi. orderedIds — yangi tartibdagi zayavka ID'lari ro'yxati.
+   */
+  async reorder(orderedIds: string[], actor: AuthTokenPayload) {
+    if (actor.role !== Role.CHIEF_TECHNICIAN && actor.role !== Role.SUPERADMIN) {
+      throw AppError.forbidden("Faqat Bosh texnik zayavkalarni tartiblashi mumkin");
+    }
+    await prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.request.update({ where: { id }, data: { sortOrder: index + 1 } })
+      )
+    );
+    return { success: true };
+  },
+
+  async notifyOnStatusChange(
+    request: Awaited<ReturnType<typeof requestsRepository.findById>>,
+    nextStatus: RequestStatus,
+    actor?: AuthTokenPayload
+  ) {
     if (!request) return;
 
     const categoryLabel = await categoriesService.getLabel(request.category);
 
-    if (nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN && request.chiefTechnicianId) {
+    // Texnik "Ishni boshlash" bosganda Bosh texnikka xabar boradi.
+    if (
+      nextStatus === RequestStatus.IN_PROGRESS &&
+      request.chiefTechnicianId &&
+      request.chiefTechnicianId !== actor?.userId
+    ) {
+      const starterName = request.technician?.fullName ?? "Texnik";
+      await notificationsService.notify({
+        userId: request.chiefTechnicianId,
+        requestId: request.id,
+        type: NotificationType.TECHNICIAN_STARTED,
+        text: `▶️ ${starterName} ishni boshladi: ${request.branch.name}, "${categoryLabel}".`,
+      });
+    }
+
+    if (
+      nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN &&
+      request.chiefTechnicianId &&
+      request.chiefTechnicianId !== actor?.userId
+    ) {
+      const workerName = request.technician?.fullName ?? "Texnik";
       await notificationsService.notify({
         userId: request.chiefTechnicianId,
         requestId: request.id,
         type: NotificationType.TECHNICIAN_COMPLETED,
-        text: `✅ Texnik ishni yakunladi: ${request.branch.name}, "${categoryLabel}". Tasdiqlashingiz kerak.`,
+        text: `✅ ${workerName} ishni yakunladi: ${request.branch.name}, "${categoryLabel}". Harajat summasini kiritib, ishni yakunlashingiz kerak.`,
       });
     }
 
@@ -313,6 +375,75 @@ export const requestsService = {
       // shuning uchun bazadan va diskdan xavfsiz o'chirib tashlaymiz.
       await this.purgeMedia(request);
     }
+  },
+
+  /**
+   * Zayavkalar tarixini PDF yoki XLSX faylga eksport qilib, foydalanuvchining
+   * Telegram bot chatiga hujjat sifatida yuboradi. Ko'rish doirasi list()
+   * bilan bir xil: Direktor — o'z filiali, Texnik — o'z ishlari,
+   * Bosh texnik va Superadmin — hammasi.
+   */
+  async exportHistory(filters: RequestFilters, format: "pdf" | "xlsx", actor: AuthTokenPayload) {
+    if (actor.role === Role.DIRECTOR) {
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
+      filters.branchId = user.branchId ?? "__none__";
+    } else if (actor.role === Role.TECHNICIAN) {
+      filters.technicianId = actor.userId;
+    }
+
+    const [items] = await requestsRepository.findMany(filters, 0, 2000);
+    if (items.length === 0) {
+      throw AppError.validation("Eksport uchun zayavkalar topilmadi");
+    }
+
+    const labels = new Map<string, string>();
+    for (const item of items) {
+      if (!labels.has(item.category)) {
+        labels.set(item.category, await categoriesService.getLabel(item.category));
+      }
+    }
+
+    const rows: ExportRow[] = items.map((r) => ({
+      createdAt: r.createdAt,
+      closedAt: r.closedAt,
+      branchName: r.branch.name,
+      categoryLabel: labels.get(r.category) ?? r.category,
+      description: r.description,
+      priority: r.priority,
+      status: r.status,
+      createdByName: r.createdBy.fullName,
+      chiefTechnicianName: r.chiefTechnician?.fullName ?? null,
+      technicianName: r.technician?.fullName ?? null,
+      expenseAmount: r.expenseAmount,
+    }));
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    const title = "Zayavkalar tarixi";
+    const file =
+      format === "xlsx" ? await buildXlsx(rows, title) : await buildPdf(rows, title);
+    const filename = `zayavkalar-tarixi-${stamp}.${format}`;
+    const mime =
+      format === "xlsx"
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "application/pdf";
+
+    await notificationsService.sendDocumentToUser(
+      actor.userId,
+      file,
+      filename,
+      mime,
+      `📄 Zayavkalar tarixi (${items.length} ta) — ${format.toUpperCase()}`
+    );
+
+    await auditLogService.log({
+      entityType: "request",
+      entityId: "export",
+      action: `history_exported_${format}`,
+      performedById: actor.userId,
+      metadata: { count: items.length },
+    });
+
+    return { success: true, count: items.length };
   },
 
   /**

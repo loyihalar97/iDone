@@ -44,7 +44,9 @@ export const requestsRepository = {
       prisma.request.findMany({
         where,
         include: includeRelations,
-        orderBy: { createdAt: "desc" },
+        // Avval Bosh texnik belgilagan ish ketma-ketligi (sortOrder), so'ngra
+        // eng yangi zayavkalar. Yangi zayavkalar sortOrder=0 bilan tepada turadi.
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
         skip,
         take,
       }),

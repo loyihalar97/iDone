@@ -9,6 +9,7 @@ import { DirectorRequestsPage } from "@/pages/director/DirectorRequestsPage";
 import { DirectorClosedRequestsPage } from "@/pages/director/DirectorClosedRequestsPage";
 import { DirectorNewRequestPage } from "@/pages/director/DirectorNewRequestPage";
 import { ChiefAllRequestsPage } from "@/pages/chief-technician/ChiefAllRequestsPage";
+import { ChiefTechniciansPage } from "@/pages/chief-technician/ChiefTechniciansPage";
 import { TechnicianRequestsPage } from "@/pages/technician/TechnicianRequestsPage";
 import { TechnicianClosedRequestsPage } from "@/pages/technician/TechnicianClosedRequestsPage";
 import { SuperadminDashboardPage } from "@/pages/superadmin/SuperadminDashboardPage";
@@ -31,6 +32,7 @@ const TITLES: Record<string, string> = {
   "/director/stats": "Statistika",
   "/director/new": "Yangi zayavka",
   "/chief/requests": "Barcha zayavkalar",
+  "/chief/technicians": "Texniklar nazorati",
   "/chief/dashboard": "Statistika",
   "/technician/requests": "Ochiq ishlar",
   "/technician/closed": "Tugatilgan ishlar",
@@ -65,6 +67,7 @@ function Shell({ role }: { role: Role }) {
         {role === Role.CHIEF_TECHNICIAN && (
           <>
             <Route path="/chief/requests" element={<ChiefAllRequestsPage />} />
+            <Route path="/chief/technicians" element={<ChiefTechniciansPage />} />
             <Route path="/chief/dashboard" element={<SuperadminDashboardPage />} />
           </>
         )}
