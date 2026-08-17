@@ -12,7 +12,8 @@ Autentifikatsiya: `Authorization: Bearer <JWT>` header orqali (login endpointida
 Telegram Mini App `initData`si orqali kirish. Foydalanuvchi bazada bo'lmasa, `isActive: false` holatida yaratiladi (superadmin faollashtirishi kerak).
 
 **Body:** `{ "initData": "query_id=...&user=...&hash=..." }`
-**Response:** `{ "token": "jwt...", "user": { id, fullName, role, branchId, isActive } }`
+**Response:** `{ "token": "jwt...", "user": { id, fullName, role, branchId, branchName, managedBranches, isActive } }`
+> `managedBranches` — Hududiy rahbarga biriktirilgan filiallar: `[{ id, name }]`.
 
 ### `GET /auth/me`
 Joriy foydalanuvchi ma'lumotlari.
@@ -21,22 +22,36 @@ Joriy foydalanuvchi ma'lumotlari.
 
 ## Requests (zayavkalar)
 
-### `POST /requests` — Direktor
+### `POST /requests` — Direktor, Filial menejeri, Hududiy rahbar, Rahbar, Superadmin
 ```json
 {
-  "branchId": "uuid (faqat Superadmin uchun; Direktorda o'z filialidan olinadi)",
+  "branchId": "uuid (Hududiy rahbar / Rahbar / Superadmin uchun; Direktor va Filial menejerida o'z filialidan olinadi)",
   "category": "electrical | plumbing | ac | kitchen_equipment | it_equipment | furniture | other",
   "description": "string",
   "priority": "low | medium | high | critical",
   "beforePhotoUrl": "https://..."
 }
 ```
-> Direktorga filial biriktirilmagan bo'lsa zayavka ochilmaydi (400 xato).
-> Bosh texnik AVTOMATIK belgilanadi (tizimdagi yagona faol Bosh texnik).
+> Direktor/Filial menejeriga filial biriktirilmagan bo'lsa zayavka ochilmaydi (400 xato).
+> Hududiy rahbar faqat o'ziga biriktirilgan filiallarga zayavka ocha oladi (aks holda 403).
+> Bosh texnik OLDINDAN belgilanmaydi: zayavka barcha faol Bosh texniklarga ko'rinadi va
+> kim birinchi bo'lib texnik biriktirsa, o'sha mas'ul Bosh texnik bo'lib qoladi.
+> Bildirishnoma yaratuvchiga, barcha faol Bosh texniklarga va filial rahbarlariga boradi.
 
 ### `GET /requests`
-Query: `branchId, status, priority, category, technicianId, dateFrom, dateTo, page, pageSize`
-Rol asosida avtomatik filtrlanadi (Direktor faqat o'z filialini, Texnik faqat o'ziga biriktirilganlarni ko'radi).
+Query: `branchId, status, priority, category, technicianId, chiefTechnicianId, createdById, createdByRole, dateFrom, dateTo, page, pageSize`
+
+Rol asosida avtomatik filtrlanadi:
+
+| Rol | Ko'rish doirasi |
+|---|---|
+| Direktor, Filial menejeri | o'z filiali |
+| Hududiy rahbar | o'ziga biriktirilgan filiallar (`user_branches`) |
+| Texnik | faqat o'ziga biriktirilgan ishlar |
+| Bosh texnik, Rahbar, Superadmin | barcha filiallar |
+
+`createdById` va `createdByRole` — Rahbar uchun "kim ochgani" va "qaysi lavozim ochgani"
+kesimidagi tarix (hisobot) filtrlari.
 
 ### `GET /requests/:id`
 ### `GET /requests/:id/history` — status va audit tarixi
@@ -45,6 +60,27 @@ Rol asosida avtomatik filtrlanadi (Direktor faqat o'z filialini, Texnik faqat o'
 ```json
 { "technicianId": "uuid" }
 ```
+> Zayavka yopilmaguncha texnikni istalgan paytda O'ZGARTIRISH mumkin.
+> `technicianId` sifatida Bosh texnikning o'zi ham ko'rsatilishi mumkin (ishni o'ziga biriktirish).
+> Mas'ul Bosh texnik belgilanmagan bo'lsa, biriktirayotgan Bosh texnik mas'ul bo'lib qoladi.
+
+### `PATCH /requests/:id/priority` — Bosh texnik
+```json
+{ "priority": "low | medium | high | critical" }
+```
+Zayavkaning muhimlik darajasini o'zgartiradi. O'zgarish audit log'ga yoziladi; zayavka egasi,
+biriktirilgan texnik va filial rahbarlariga bot orqali xabar boradi. Yopilgan zayavkada ishlamaydi.
+
+### `POST /requests/:id/comments` — Bosh texnik
+```json
+{ "text": "Ehtiyot qism yo'q, ta'minotchidan kutilmoqda", "isBlocker": true }
+```
+Bajarish imkonsiz bo'lgan zayavkaga **texnik biriktirmasdan** sabab izohini yozadi.
+Zayavka holati O'ZGARMAYDI (`new` bo'lib qolaveradi — keyinchalik texnik biriktirish mumkin).
+Izoh filial direktori, filial menejeri va zayavka egasining **bot chatiga** xabar bo'lib boradi.
+
+### `GET /requests/:id/comments`
+Zayavka izohlari ro'yxati (zayavkani ko'rish huquqi bor barcha rollar uchun).
 
 ### `PATCH /requests/:id/status`
 ```json
@@ -55,8 +91,15 @@ Rol asosida avtomatik filtrlanadi (Direktor faqat o'z filialini, Texnik faqat o'
 }
 ```
 > `closed` statusiga qo'lda o'tish taqiqlangan — u faqat `accepted_by_director`dan keyin avtomatik qo'yiladi.
-> `approved_by_chief_technician` (Bosh texnik "Ishni yakunlash") uchun `expenseAmount` MAJBURIY —
-> harajat bo'lmagan bo'lsa `0` yuboriladi.
+> `expenseAmount` ni endi TEXNIK ham kiritadi (`completed_by_technician` bilan birga, ixtiyoriy).
+> Texnik summani kiritmasa — avtomatik `0` yoziladi.
+> Bosh texnik uchun (`approved_by_chief_technician`) summa MAJBURIY EMAS: yuborilmasa mavjud
+> qiymat saqlanadi, yuborilsa tahrirlanadi.
+> `accepted_by_director` ni Direktor, Filial menejeri, Hududiy rahbar va Rahbar bosishi mumkin
+> (har biri o'z ko'rish doirasidagi filiallar bilan cheklangan) — direktori yo'q filialdagi
+> zayavka yopilmay qolmasligi uchun.
+> `expenseAmount` faqat `completed_by_technician` va `approved_by_chief_technician`
+> o'tishlarida qabul qilinadi; boshqa o'tishlarda e'tiborga olinmaydi.
 > Oqim: Texnik `in_progress` (Bosh texnikka xabar) → Texnik `completed_by_technician` (Bosh texnikka xabar)
 > → Bosh texnik `approved_by_chief_technician` (Direktorga xabar) → Direktor `accepted_by_director` → avtomatik `closed`.
 
@@ -95,11 +138,16 @@ bildirishnomalar `SET NULL` orqali tozalanadi; rasm fayllari o'chiriladi.
 
 ## Users
 
-- `GET /users?role=&branchId=&isActive=` — Superadmin, Bosh texnik
-- `GET /users/technicians?branchId=` — Bosh texnik, Superadmin — filial texniklari + barcha filiallarga biriktirilgan (branchId=null) texniklar
-- `GET /users/technicians/overview` — Bosh texnik, Superadmin — texniklar nazorati (har birining ish yuklamasi kesimi)
+- `GET /users?role=&branchId=&isActive=` — Superadmin, Bosh texnik, Rahbar
+- `GET /users/technicians?branchId=` — Bosh texnik, Superadmin — filial texniklari + barcha filiallarga biriktirilgan (branchId=null) texniklar **+ Bosh texniklar** (ishni o'ziga biriktirish uchun)
+- `GET /users/technicians/overview` — Bosh texnik, Superadmin, Rahbar — texniklar nazorati (har birining ish yuklamasi kesimi)
 - `GET /users/chief-technicians` — Direktor, Superadmin
-- `PATCH /users/:id/role` — Superadmin — `{ role, branchId?, isActive? }` — Direktor uchun filial majburiy; Texnikda `branchId: null` = **barcha filiallar**; faol Bosh texnik faqat bitta bo'lishi mumkin
+- `PATCH /users/:id/role` — Superadmin — `{ role, branchId?, branchIds?, isActive? }`
+  - `role`: `director | branch_manager | regional_manager | executive | chief_technician | technician | superadmin`
+  - Direktor va Filial menejeri uchun `branchId` majburiy
+  - **Hududiy rahbar** uchun `branchIds` (kamida bitta filial) majburiy — `user_branches` jadvaliga yoziladi
+  - Texnikda `branchId: null` = **barcha filiallar**
+  - Bosh texniklar soni **cheklanmagan**
 - `PATCH /users/:id/active` — Superadmin — `{ isActive }`
 - `DELETE /users/:id` — Superadmin — yaratgan zayavkasi/audit tarixi bo'lsa xato qaytadi (faolsizlantiring)
 
@@ -115,7 +163,7 @@ bildirishnomalar `SET NULL` orqali tozalanadi; rasm fayllari o'chiriladi.
 
 ## Dashboard
 
-- `GET /dashboard/stats` — Superadmin, Bosh texnik
+- `GET /dashboard/stats` — barcha rollar (doirasi rolga qarab cheklanadi: Direktor/Filial menejeri — o'z filiali, Hududiy rahbar — biriktirilgan filiallari, Texnik — o'z ishlari, Bosh texnik/Rahbar/Superadmin — hammasi)
 
 ## Audit log
 

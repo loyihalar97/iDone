@@ -3,7 +3,39 @@ export enum Role {
   CHIEF_TECHNICIAN = "chief_technician",
   TECHNICIAN = "technician",
   SUPERADMIN = "superadmin",
+  /** Hududiy rahbar — o'ziga biriktirilgan bir nechta filialni boshqaradi. */
+  REGIONAL_MANAGER = "regional_manager",
+  /** Rahbar — butun kompaniyani (barcha filiallar + texniklar) kuzatadi. */
+  EXECUTIVE = "executive",
+  /** Filial menejeri — faqat o'z filiali doirasida ishlaydi. */
+  BRANCH_MANAGER = "branch_manager",
 }
+
+export const ROLE_LABELS_UZ: Record<Role, string> = {
+  [Role.DIRECTOR]: "Filial direktori",
+  [Role.CHIEF_TECHNICIAN]: "Bosh texnik",
+  [Role.TECHNICIAN]: "Texnik",
+  [Role.SUPERADMIN]: "Superadmin",
+  [Role.REGIONAL_MANAGER]: "Hududiy rahbar",
+  [Role.EXECUTIVE]: "Rahbar",
+  [Role.BRANCH_MANAGER]: "Filial menejeri",
+};
+
+/** Barcha filiallarni cheklovsiz ko'radigan rollar. */
+export const GLOBAL_SCOPE_ROLES: Role[] = [
+  Role.SUPERADMIN,
+  Role.CHIEF_TECHNICIAN,
+  Role.EXECUTIVE,
+];
+
+/** Zayavka ocha oladigan rollar. */
+export const REQUEST_CREATOR_ROLES: Role[] = [
+  Role.DIRECTOR,
+  Role.BRANCH_MANAGER,
+  Role.REGIONAL_MANAGER,
+  Role.EXECUTIVE,
+  Role.SUPERADMIN,
+];
 
 export enum RequestStatus {
   NEW = "new",
@@ -64,4 +96,8 @@ export enum NotificationType {
   TECHNICIAN_COMPLETED = "technician_completed",
   CHIEF_APPROVED = "chief_approved",
   REQUEST_CLOSED = "request_closed",
+  /** Bosh texnik zayavkaga izoh yozdi (masalan: bajarish imkonsiz sabablari). */
+  REQUEST_COMMENT = "request_comment",
+  /** Zayavkaning muhimlik darajasi o'zgartirildi. */
+  PRIORITY_CHANGED = "priority_changed",
 }

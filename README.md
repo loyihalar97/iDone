@@ -22,9 +22,16 @@ packages/
 | Rol | Imkoniyatlar |
 |---|---|
 | **Filial direktori** | Zayavka yaratadi, o'z filiali zayavkalarini ko'radi, ishni qabul qiladi |
-| **Bosh texnik** | Barcha zayavkalarni ko'radi, texnik biriktiradi, ishni tasdiqlaydi |
-| **Texnik** | O'ziga biriktirilgan ishlarni ko'radi, bajaradi, natija rasmini yuklaydi |
+| **Filial menejeri** | O'z filialini kuzatadi, zayavka ochadi, tarix va hisobotlarni ko'radi/yuklaydi |
+| **Hududiy rahbar** | O'ziga biriktirilgan **bir nechta filialni** kuzatadi, ularga zayavka ochadi, tarix va hisobotlarni yuklaydi |
+| **Rahbar** | **Barcha filiallarni** kuzatadi, zayavka ochadi, texniklarni nazorat qiladi, texnik/direktor/lavozim kesimida tarix va hisobot oladi |
+| **Bosh texnik** | Barcha zayavkalarni ko'radi, texnik biriktiradi/o'zgartiradi (o'ziga ham), muhimlikni o'zgartiradi, bajarish imkonsizligi haqida izoh yozadi, ishni tasdiqlaydi |
+| **Texnik** | O'ziga biriktirilgan ishlarni ko'radi, bajaradi, natija rasmi va harajat summasini kiritadi |
 | **Superadmin** | Foydalanuvchi/filiallarni boshqaradi, statistika ko'radi, rol tayinlaydi |
+
+Bosh texniklar soni cheklanmagan — bir nechta faol Bosh texnik bo'lishi mumkin. Yangi zayavka
+hech kimga biriktirilmagan holda ochiladi va barcha faol Bosh texniklarga ko'rinadi; kim birinchi
+bo'lib texnik biriktirsa, o'sha zayavkaning mas'ul Bosh texnigi bo'lib qoladi.
 
 Zayavka hayot sikli: `Yangi → Jarayonda → Texnik tugatdi → Bosh texnik tasdiqladi → Direktor tasdiqladi → Yopildi (avtomatik)`.
 
