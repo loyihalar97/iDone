@@ -7,46 +7,77 @@ export const usersService = {
   list(filters: { role?: Role; branchId?: string; isActive?: boolean }) {
     return prisma.user.findMany({
       where: filters,
-      include: { branch: { select: { name: true } } },
+      include: {
+        branch: { select: { name: true } },
+        // Hududiy rahbarga biriktirilgan filiallar.
+        managedBranches: { include: { branch: { select: { id: true, name: true } } } },
+      },
       orderBy: { createdAt: "desc" },
     });
   },
 
+  /**
+   * Rol tayinlash.
+   *
+   *  - Direktor va Filial menejeri uchun BITTA filial majburiy (`branchId`);
+   *  - Hududiy rahbar uchun kamida bitta filial `branchIds` orqali biriktiriladi;
+   *  - Texnik uchun filial ixtiyoriy (bo'sh = barcha filiallar);
+   *  - Bosh texnik, Rahbar, Superadmin — filialsiz.
+   *
+   * Bosh texniklar soni cheklanmagan — tizimda bir nechta faol Bosh texnik
+   * bo'lishi mumkin.
+   */
   async assignRole(
     id: string,
-    data: { role: Role; branchId?: string | null; isActive?: boolean },
+    data: { role: Role; branchId?: string | null; branchIds?: string[]; isActive?: boolean },
     actorId: string
   ) {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw AppError.notFound("Foydalanuvchi topilmadi");
 
-    // Direktor uchun filial majburiy. Texnik uchun esa ixtiyoriy:
-    // filial berilmasa (null) — texnik BARCHA filiallarga biriktirilgan hisoblanadi.
-    if (data.role === Role.DIRECTOR && !data.branchId && !user.branchId) {
-      throw AppError.validation("Direktor uchun filial belgilanishi shart");
+    const needsSingleBranch = data.role === Role.DIRECTOR || data.role === Role.BRANCH_MANAGER;
+    if (needsSingleBranch && !data.branchId && !user.branchId) {
+      throw AppError.validation(
+        data.role === Role.DIRECTOR
+          ? "Direktor uchun filial belgilanishi shart"
+          : "Filial menejeri uchun filial belgilanishi shart"
+      );
     }
 
-    // Tizimda faqat BITTA faol Bosh texnik bo'lishi mumkin — zayavkalar unga
-    // avtomatik biriktiriladi.
-    if (data.role === Role.CHIEF_TECHNICIAN && (data.isActive ?? user.isActive)) {
-      const existingChief = await prisma.user.findFirst({
-        where: { role: Role.CHIEF_TECHNICIAN, isActive: true, id: { not: id } },
+    if (data.role === Role.REGIONAL_MANAGER && (data.branchIds ?? []).length === 0) {
+      throw AppError.validation(
+        "Hududiy rahbar uchun kamida bitta filial biriktirilishi shart"
+      );
+    }
+
+    // Bitta filial faqat quyidagi rollarda saqlanadi; qolganlarida tozalanadi.
+    const keepsSingleBranch = needsSingleBranch || data.role === Role.TECHNICIAN;
+    const nextBranchId = keepsSingleBranch
+      ? data.branchId === undefined
+        ? undefined
+        : data.branchId
+      : null;
+
+    const updated = await prisma.$transaction(async (tx: any) => {
+      const u = await tx.user.update({
+        where: { id },
+        data: {
+          role: data.role,
+          branchId: nextBranchId,
+          isActive: data.isActive ?? user.isActive,
+        },
       });
-      if (existingChief) {
-        throw AppError.validation(
-          `Tizimda allaqachon faol Bosh texnik bor: ${existingChief.fullName}. ` +
-            `Avval uni boshqa rolga o'tkazing yoki nofaol qiling.`
-        );
-      }
-    }
 
-    const updated = await prisma.user.update({
-      where: { id },
-      data: {
-        role: data.role,
-        branchId: data.branchId === undefined ? undefined : data.branchId,
-        isActive: data.isActive ?? user.isActive,
-      },
+      // Ko'p-filial biriktiruvlari faqat Hududiy rahbarda saqlanadi.
+      await tx.userBranch.deleteMany({ where: { userId: id } });
+      if (data.role === Role.REGIONAL_MANAGER && data.branchIds?.length) {
+        await tx.userBranch.createMany({
+          data: data.branchIds.map((branchId: string) => ({ userId: id, branchId })),
+          skipDuplicates: true,
+        });
+      }
+
+      return u;
     });
 
     await auditLogService.log({
@@ -61,19 +92,6 @@ export const usersService = {
   },
 
   async setActive(id: string, isActive: boolean, actorId: string) {
-    if (isActive) {
-      const user = await prisma.user.findUnique({ where: { id } });
-      if (user?.role === Role.CHIEF_TECHNICIAN) {
-        const existingChief = await prisma.user.findFirst({
-          where: { role: Role.CHIEF_TECHNICIAN, isActive: true, id: { not: id } },
-        });
-        if (existingChief) {
-          throw AppError.validation(
-            `Tizimda allaqachon faol Bosh texnik bor: ${existingChief.fullName}.`
-          );
-        }
-      }
-    }
     const updated = await prisma.user.update({ where: { id }, data: { isActive } });
     await auditLogService.log({
       entityType: "user",
@@ -110,6 +128,10 @@ export const usersService = {
       // Biriktirilgan ishlarni bo'shatamiz.
       prisma.request.updateMany({ where: { technicianId: id }, data: { technicianId: null } }),
       prisma.request.updateMany({ where: { chiefTechnicianId: id }, data: { chiefTechnicianId: null } }),
+      // Yozgan izohlari saqlanadi, muallifligi o'chiruvchi adminga o'tadi.
+      prisma.requestComment.updateMany({ where: { authorId: id }, data: { authorId: actorId } }),
+      // Filial biriktiruvlari (Hududiy rahbar) bekor qilinadi.
+      prisma.userBranch.deleteMany({ where: { userId: id } }),
       // Shaxsiy audit yozuvlari va bildirishnomalarni o'chiramiz.
       prisma.auditLog.deleteMany({ where: { performedById: id } }),
       prisma.notification.deleteMany({ where: { userId: id } }),
@@ -127,16 +149,22 @@ export const usersService = {
     return { success: true };
   },
 
+  /**
+   * Zayavkaga biriktirish mumkin bo'lgan xodimlar. Texniklardan tashqari
+   * BOSH TEXNIKLAR ham qaytariladi — bosh texnik ishni o'ziga (yoki boshqa
+   * bosh texnikka) biriktira olishi kerak.
+   */
   listTechnicians(branchId?: string) {
     return prisma.user.findMany({
       where: {
-        role: Role.TECHNICIAN,
+        role: { in: [Role.TECHNICIAN, Role.CHIEF_TECHNICIAN] as any },
         isActive: true,
         // branchId berilsa — shu filial texniklari + barcha filiallarga
         // biriktirilgan (branchId = null) texniklar qaytariladi.
         ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
       },
-      select: { id: true, fullName: true, branchId: true },
+      select: { id: true, fullName: true, branchId: true, role: true },
+      orderBy: [{ role: "asc" }, { fullName: "asc" }],
     });
   },
 
@@ -146,7 +174,9 @@ export const usersService = {
    */
   async techniciansOverview() {
     const technicians = await prisma.user.findMany({
-      where: { role: Role.TECHNICIAN },
+      // Bosh texniklar ham ishni o'ziga biriktira oladi — ular ham nazoratda
+      // ko'rinadi.
+      where: { role: { in: [Role.TECHNICIAN, Role.CHIEF_TECHNICIAN] as any } },
       include: { branch: { select: { name: true } } },
       orderBy: { fullName: "asc" },
     });
@@ -164,6 +194,7 @@ export const usersService = {
       return {
         id: t.id,
         fullName: t.fullName,
+        role: t.role,
         isActive: t.isActive,
         branchName: t.branch?.name ?? null, // null — barcha filiallar
         newCount: count(["new"]),

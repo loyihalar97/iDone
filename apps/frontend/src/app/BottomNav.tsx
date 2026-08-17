@@ -41,6 +41,28 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: "/superadmin/branches", label: "Filiallar", icon: Building2 },
     { to: "/superadmin/categories", label: "Kategoriya", icon: Tags },
   ],
+  // Hududiy rahbar — biriktirilgan filiallari bo'yicha.
+  [Role.REGIONAL_MANAGER]: [
+    { to: "/manager/requests", label: "Ochiq", icon: ListChecks },
+    { to: "/manager/closed", label: "Tarix", icon: CheckCircle2 },
+    { to: "/manager/new", label: "Yangi", icon: PlusCircle },
+    { to: "/manager/stats", label: "Statistika", icon: BarChart3 },
+  ],
+  // Rahbar — barcha filiallar + texniklar nazorati.
+  [Role.EXECUTIVE]: [
+    { to: "/manager/requests", label: "Zayavkalar", icon: ListChecks },
+    { to: "/manager/closed", label: "Tarix", icon: CheckCircle2 },
+    { to: "/manager/technicians", label: "Texniklar", icon: Users },
+    { to: "/manager/new", label: "Yangi", icon: PlusCircle },
+    { to: "/manager/stats", label: "Statistika", icon: BarChart3 },
+  ],
+  // Filial menejeri — faqat o'z filiali.
+  [Role.BRANCH_MANAGER]: [
+    { to: "/manager/requests", label: "Ochiq", icon: ListChecks },
+    { to: "/manager/closed", label: "Tarix", icon: CheckCircle2 },
+    { to: "/manager/new", label: "Yangi", icon: PlusCircle },
+    { to: "/manager/stats", label: "Statistika", icon: BarChart3 },
+  ],
 };
 
 export function BottomNav({ role }: { role: Role }) {

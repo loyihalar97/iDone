@@ -2,8 +2,10 @@ import {
   NotificationType,
   Priority,
   PRIORITY_LABELS_UZ,
+  REQUEST_CREATOR_ROLES,
   RequestStatus,
   Role,
+  ROLE_LABELS_UZ,
   STATUS_LABELS_UZ,
 } from "@app/shared-types";
 import { RequestStatus as PrismaRequestStatus } from "@prisma/client";
@@ -16,6 +18,7 @@ import { auditLogService } from "../audit-log/audit-log.service";
 import { categoriesService } from "../categories/categories.service";
 import { notificationsService } from "../notifications/notifications.service";
 import { mediaService } from "../media/media.service";
+import { resolveCreateBranchId, resolveScope, scopeAllowsBranch } from "../../core/access/scope";
 import type { AuthTokenPayload } from "../auth/auth.service";
 
 interface CreateRequestInput {
@@ -48,7 +51,8 @@ function buildRequestCardHtml(
     `📂 <b>Kategoriya:</b> ${escapeHtml(categoryLabel)}`,
     `⚠️ <b>Muhimlik:</b> ${PRIORITY_LABELS_UZ[request.priority as Priority]}`,
     `📝 <b>Tavsif:</b> ${escapeHtml(request.description)}`,
-    `👤 <b>Direktor:</b> ${escapeHtml(request.createdBy.fullName)}`,
+    `👤 <b>Yaratdi:</b> ${escapeHtml(request.createdBy.fullName)}` +
+      ` (${ROLE_LABELS_UZ[request.createdBy.role as Role] ?? request.createdBy.role})`,
   ];
   if (request.chiefTechnician) {
     lines.push(`🧑‍🔧 <b>Bosh texnik:</b> ${escapeHtml(request.chiefTechnician.fullName)}`);
@@ -63,38 +67,43 @@ function buildRequestCardHtml(
   return lines.join("\n");
 }
 
+/** Tizimdagi barcha faol Bosh texniklarning ID'lari. */
+async function findActiveChiefTechnicianIds(): Promise<string[]> {
+  const chiefs = await prisma.user.findMany({
+    where: { role: Role.CHIEF_TECHNICIAN, isActive: true },
+    select: { id: true },
+  });
+  return chiefs.map((c: { id: string }) => c.id);
+}
+
+/** Filialga mas'ul rahbarlar (direktor va filial menejeri) ID'lari. */
+async function findBranchLeaderIds(branchId: string): Promise<string[]> {
+  const leaders = await prisma.user.findMany({
+    where: {
+      branchId,
+      isActive: true,
+      role: { in: [Role.DIRECTOR, Role.BRANCH_MANAGER] as any },
+    },
+    select: { id: true },
+  });
+  return leaders.map((u: { id: string }) => u.id);
+}
+
 export const requestsService = {
   async create(input: CreateRequestInput, actor: AuthTokenPayload) {
-    if (actor.role !== Role.DIRECTOR && actor.role !== Role.SUPERADMIN) {
-      throw AppError.forbidden("Faqat filial direktori zayavka yarata oladi");
+    if (!REQUEST_CREATOR_ROLES.includes(actor.role)) {
+      throw AppError.forbidden("Sizning lavozimingiz zayavka ocha olmaydi");
     }
 
-    // Direktor faqat O'Z filialiga zayavka ochadi. Filial Superadmin tomonidan
-    // biriktiriladi — biriktirilmagan bo'lsa, zayavka ochish taqiqlanadi.
-    let branchId = input.branchId;
-    if (actor.role === Role.DIRECTOR) {
-      const director = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
-      if (!director.branchId) {
-        throw AppError.validation(
-          "Sizga filial biriktirilmagan. Zayavka ochish uchun Superadminga murojaat qiling."
-        );
-      }
-      branchId = director.branchId;
-    }
-    if (!branchId) {
-      throw AppError.validation("Filial ko'rsatilishi shart");
-    }
+    // Filial rolga qarab aniqlanadi (o'z filiali / biriktirilgan filiallar / istalgani).
+    const branchId = await resolveCreateBranchId(input.branchId, actor);
 
-    // Bosh texnik AVTOMATIK belgilanadi — tizimda bitta faol Bosh texnik bo'ladi.
-    const chief = await prisma.user.findFirst({
-      where: { role: Role.CHIEF_TECHNICIAN, isActive: true },
-      orderBy: { createdAt: "asc" },
-    });
-
+    // Bosh texnik OLDINDAN biriktirilmaydi: zayavka barcha faol bosh
+    // texniklarga ko'rinadi va kim birinchi bo'lib texnik biriktirsa,
+    // o'sha zayavkaning mas'ul bosh texnigi bo'lib qoladi.
     const request = await requestsRepository.create({
       branchId,
       createdById: actor.userId,
-      chiefTechnicianId: chief?.id,
       category: input.category as any,
       description: input.description,
       priority: input.priority as any,
@@ -112,24 +121,22 @@ export const requestsService = {
       metadata: { branchId, priority: input.priority },
     });
 
-    // Zayavka ochilganda Direktor va Bosh texnikka formatlangan, rasmli xabar yuboriladi.
+    // Zayavka ochilganda yaratuvchiga va BARCHA faol bosh texniklarga
+    // formatlangan, rasmli xabar yuboriladi.
     const categoryLabel = await categoriesService.getLabel(request.category);
     const openCardText = buildRequestCardHtml(request, "🆕 Yangi zayavka ochildi", categoryLabel);
     const openPhotoUrls = request.beforePhotoUrl ? [request.beforePhotoUrl] : undefined;
 
-    await notificationsService.notify({
-      userId: actor.userId,
-      requestId: request.id,
-      type: NotificationType.REQUEST_CREATED,
-      text: openCardText,
-      photoUrls: openPhotoUrls,
-      html: true,
-    });
+    // Yaratuvchi + barcha faol bosh texniklar + filial rahbarlari
+    // (Hududiy rahbar/Rahbar boshqa filialga zayavka ochsa, filial direktori
+    // ham xabardor bo'ladi).
+    const chiefIds = await findActiveChiefTechnicianIds();
+    const leaderIds = await findBranchLeaderIds(branchId);
+    const recipients = Array.from(new Set([actor.userId, ...chiefIds, ...leaderIds]));
 
-    // Avtomatik belgilangan Bosh texnikka xabar boradi.
-    if (request.chiefTechnician) {
+    for (const userId of recipients) {
       await notificationsService.notify({
-        userId: request.chiefTechnician.id,
+        userId,
         requestId: request.id,
         type: NotificationType.REQUEST_CREATED,
         text: openCardText,
@@ -148,15 +155,31 @@ export const requestsService = {
     return request;
   },
 
-  async list(filters: RequestFilters, page: number, pageSize: number, actor: AuthTokenPayload) {
-    // Rol asosida ko'rish doirasini cheklash
-    if (actor.role === Role.DIRECTOR) {
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
-      filters.branchId = user.branchId ?? "__none__";
-    } else if (actor.role === Role.TECHNICIAN) {
-      filters.technicianId = actor.userId;
+  /**
+   * Foydalanuvchi filtrlarini uning ko'rish doirasi bilan kesishtiradi.
+   * Natijada repository faqat ruxsat etilgan yozuvlarni qaytaradi.
+   */
+  async applyScope(filters: RequestFilters, actor: AuthTokenPayload) {
+    const scope = await resolveScope(actor);
+
+    if (scope.kind === "technician") {
+      filters.technicianId = scope.technicianId;
+      delete filters.branchIds;
+      return;
     }
-    // chief_technician va superadmin — barcha filiallarni ko'radi
+
+    if (scope.kind === "branches") {
+      const requested = filters.branchId;
+      filters.branchIds = requested
+        ? scope.branchIds.filter((id) => id === requested)
+        : scope.branchIds;
+      delete filters.branchId;
+    }
+    // "all" — cheklov yo'q, foydalanuvchi filtrlari o'z holicha qoladi.
+  },
+
+  async list(filters: RequestFilters, page: number, pageSize: number, actor: AuthTokenPayload) {
+    await this.applyScope(filters, actor);
 
     const skip = (page - 1) * pageSize;
     const [items, total] = await requestsRepository.findMany(filters, skip, pageSize);
@@ -169,31 +192,191 @@ export const requestsService = {
     }
     const request = await requestsRepository.findById(requestId);
     if (!request) throw AppError.notFound("Zayavka topilmadi");
-
-    const technician = await prisma.user.findUnique({ where: { id: technicianId } });
-    if (!technician || technician.role !== Role.TECHNICIAN) {
-      throw AppError.validation("Ko'rsatilgan foydalanuvchi texnik emas");
+    if (request.status === RequestStatus.CLOSED) {
+      throw AppError.conflict("Yopilgan zayavkaga texnik biriktirib bo'lmaydi");
     }
 
-    const updated = await requestsRepository.assignTechnician(requestId, technicianId);
+    const technician = await prisma.user.findUnique({ where: { id: technicianId } });
+    // Bosh texnik ishni O'ZIGA ham biriktira oladi, shuning uchun bosh
+    // texnik rolidagi xodim ham qabul qilinadi.
+    if (
+      !technician ||
+      (technician.role !== Role.TECHNICIAN && technician.role !== Role.CHIEF_TECHNICIAN)
+    ) {
+      throw AppError.validation("Ko'rsatilgan foydalanuvchi texnik emas");
+    }
+    if (!technician.isActive) {
+      throw AppError.validation("Bu xodim nofaol — unga ish biriktirib bo'lmaydi");
+    }
+
+    const previousTechnicianId = request.technicianId;
+
+    // Mas'ul bosh texnik hali belgilanmagan bo'lsa — biriktirayotgan bosh
+    // texnik zayavkaning mas'uli bo'lib qoladi.
+    const claimChiefId =
+      !request.chiefTechnicianId && actor.role === Role.CHIEF_TECHNICIAN ? actor.userId : undefined;
+
+    const updated = await requestsRepository.assignTechnician(
+      requestId,
+      technicianId,
+      claimChiefId
+    );
 
     await auditLogService.log({
       entityType: "request",
       entityId: requestId,
-      action: "technician_assigned",
+      action: previousTechnicianId ? "technician_changed" : "technician_assigned",
       performedById: actor.userId,
-      metadata: { technicianId },
+      metadata: { technicianId, previousTechnicianId },
     });
 
     const assignCategoryLabel = await categoriesService.getLabel(updated.category);
-    await notificationsService.notify({
-      userId: technicianId,
-      requestId,
-      type: NotificationType.TECHNICIAN_ASSIGNED,
-      text: `🔧 Sizga yangi zayavka biriktirildi: ${updated.branch.name} filiali, "${assignCategoryLabel}".`,
-    });
+
+    // Yangi texnikka xabar (o'ziga biriktirgan bo'lsa xabar yuborilmaydi).
+    if (technicianId !== actor.userId) {
+      await notificationsService.notify({
+        userId: technicianId,
+        requestId,
+        type: NotificationType.TECHNICIAN_ASSIGNED,
+        text: `🔧 Sizga yangi zayavka biriktirildi: ${updated.branch.name} filiali, "${assignCategoryLabel}".`,
+      });
+    }
+
+    // Ish boshqa texnikdan olib qo'yilgan bo'lsa — eski texnikka ham xabar.
+    if (previousTechnicianId && previousTechnicianId !== technicianId) {
+      await notificationsService.notify({
+        userId: previousTechnicianId,
+        requestId,
+        type: NotificationType.TECHNICIAN_ASSIGNED,
+        text: `ℹ️ Zayavka boshqa texnikka o'tkazildi: ${updated.branch.name} filiali, "${assignCategoryLabel}".`,
+      });
+    }
 
     return updated;
+  },
+
+  /**
+   * Muhimlik darajasini o'zgartiradi — faqat Bosh texnik (va Superadmin).
+   */
+  async changePriority(requestId: string, priority: Priority, actor: AuthTokenPayload) {
+    if (actor.role !== Role.CHIEF_TECHNICIAN && actor.role !== Role.SUPERADMIN) {
+      throw AppError.forbidden("Muhimlik darajasini faqat Bosh texnik o'zgartira oladi");
+    }
+    const request = await requestsRepository.findById(requestId);
+    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    if (request.status === RequestStatus.CLOSED) {
+      throw AppError.conflict("Yopilgan zayavkaning muhimligini o'zgartirib bo'lmaydi");
+    }
+    if (request.priority === priority) return request;
+
+    const previous = request.priority as Priority;
+    const updated = await requestsRepository.updatePriority(requestId, priority);
+
+    await auditLogService.log({
+      entityType: "request",
+      entityId: requestId,
+      action: "priority_changed",
+      performedById: actor.userId,
+      metadata: { from: previous, to: priority },
+    });
+
+    const categoryLabel = await categoriesService.getLabel(updated.category);
+    const text =
+      `⚠️ <b>Muhimlik darajasi o'zgartirildi</b>\n\n` +
+      `🏢 <b>Filial:</b> ${escapeHtml(updated.branch.name)}\n` +
+      `📂 <b>Kategoriya:</b> ${escapeHtml(categoryLabel)}\n` +
+      `🔁 <b>O'zgarish:</b> ${PRIORITY_LABELS_UZ[previous]} → ${PRIORITY_LABELS_UZ[priority]}`;
+
+    // Zayavka egasi, biriktirilgan texnik va filial rahbarlariga xabar.
+    const recipients = new Set<string>([updated.createdById, ...(await findBranchLeaderIds(updated.branchId))]);
+    if (updated.technicianId) recipients.add(updated.technicianId);
+    recipients.delete(actor.userId);
+
+    for (const userId of recipients) {
+      await notificationsService.notify({
+        userId,
+        requestId,
+        type: NotificationType.PRIORITY_CHANGED,
+        text,
+        html: true,
+      });
+    }
+
+    return updated;
+  },
+
+  /**
+   * Zayavkaga izoh qo'shadi. Asosiy stsenariy: Bosh texnik bajarish imkonsiz
+   * bo'lgan ishga texnik biriktirmasdan sababni yozadi — izoh filial
+   * direktorining (va filial menejerining) bot chatiga xabar bo'lib boradi.
+   * Zayavka holati o'zgarmaydi — keyinchalik texnik biriktirish mumkin.
+   */
+  async addComment(
+    requestId: string,
+    input: { text: string; isBlocker?: boolean },
+    actor: AuthTokenPayload
+  ) {
+    if (actor.role !== Role.CHIEF_TECHNICIAN && actor.role !== Role.SUPERADMIN) {
+      throw AppError.forbidden("Izohni faqat Bosh texnik yoza oladi");
+    }
+    const request = await requestsRepository.findById(requestId);
+    if (!request) throw AppError.notFound("Zayavka topilmadi");
+
+    const isBlocker = input.isBlocker ?? true;
+    const comment = await requestsRepository.addComment(
+      requestId,
+      actor.userId,
+      input.text,
+      isBlocker
+    );
+
+    await auditLogService.log({
+      entityType: "request",
+      entityId: requestId,
+      action: isBlocker ? "blocker_comment_added" : "comment_added",
+      performedById: actor.userId,
+      metadata: { commentId: comment.id },
+    });
+
+    const categoryLabel = await categoriesService.getLabel(request.category);
+    const author = await prisma.user.findUnique({ where: { id: actor.userId } });
+    const title = isBlocker
+      ? "🚫 Bu ishni bajarish imkonsiz"
+      : "💬 Zayavkaga izoh qoldirildi";
+
+    const text =
+      `<b>${title}</b>\n\n` +
+      `🏢 <b>Filial:</b> ${escapeHtml(request.branch.name)}\n` +
+      `📂 <b>Kategoriya:</b> ${escapeHtml(categoryLabel)}\n` +
+      `📝 <b>Zayavka:</b> ${escapeHtml(request.description)}\n` +
+      `🧑‍🔧 <b>Bosh texnik:</b> ${escapeHtml(author?.fullName ?? "—")}\n\n` +
+      `❗️ <b>Izoh:</b> ${escapeHtml(input.text)}`;
+
+    // Filial direktori, filial menejeri va zayavka egasiga xabar boradi.
+    const recipients = new Set<string>([
+      request.createdById,
+      ...(await findBranchLeaderIds(request.branchId)),
+    ]);
+    recipients.delete(actor.userId);
+
+    for (const userId of recipients) {
+      await notificationsService.notify({
+        userId,
+        requestId,
+        type: NotificationType.REQUEST_COMMENT,
+        text,
+        html: true,
+      });
+    }
+
+    return comment;
+  },
+
+  async listComments(requestId: string, actor: AuthTokenPayload) {
+    const request = await requestsRepository.findById(requestId);
+    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    await this.assertCanView(request, actor);
+    return requestsRepository.listComments(requestId);
   },
 
   async changeStatus(
@@ -215,19 +398,28 @@ export const requestsService = {
       throw AppError.validation("Ish yakunlangandan keyingi natija rasmi majburiy");
     }
 
-    // Bosh texnik "Ishni yakunlash" bosishdan oldin ishlatilgan harajatlar
-    // summasini kiritishi MAJBURIY (harajat bo'lmasa 0 kiritiladi).
-    if (
-      nextStatus === RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN &&
-      expenseAmount === undefined &&
-      request.expenseAmount === null
-    ) {
-      throw AppError.validation(
-        "Ishlatilgan harajatlar summasini kiriting. Harajat bo'lmagan bo'lsa 0 kiriting."
-      );
-    }
     if (expenseAmount !== undefined && expenseAmount < 0) {
       throw AppError.validation("Harajat summasi manfiy bo'lishi mumkin emas");
+    }
+
+    // Harajat summasini endi TEXNIK ham kiritadi. Texnik summani kiritmasa —
+    // avtomatik 0 yoziladi. Bosh texnik keyinchalik uni tahrirlashi mumkin
+    // (majburiy emas).
+    //
+    // Summa FAQAT shu ikki o'tishda qabul qilinadi — boshqa o'tishlarda
+    // (masalan direktor "qabul qilish" bosganda) yuborilgan qiymat e'tiborga
+    // olinmaydi, aks holda tasdiqlangan summani ustidan yozib yuborish mumkin bo'lardi.
+    const acceptsExpense =
+      nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN ||
+      nextStatus === RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN;
+
+    let effectiveExpense = acceptsExpense ? expenseAmount : undefined;
+    if (
+      effectiveExpense === undefined &&
+      nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN &&
+      (request.expenseAmount === null || request.expenseAmount === undefined)
+    ) {
+      effectiveExpense = 0;
     }
 
     const willAutoClose = shouldAutoClose(nextStatus);
@@ -237,7 +429,7 @@ export const requestsService = {
       nextStatus as PrismaRequestStatus,
       {
         afterPhotoUrl: afterPhotoUrl ?? request.afterPhotoUrl ?? undefined,
-        ...(expenseAmount !== undefined ? { expenseAmount } : {}),
+        ...(effectiveExpense !== undefined ? { expenseAmount: effectiveExpense } : {}),
         ...(willAutoClose ? { closedAt: new Date() } : {}),
       }
     );
@@ -266,7 +458,7 @@ export const requestsService = {
       entityId: requestId,
       action: `status_changed_to_${nextStatus}`,
       performedById: actor.userId,
-      ...(expenseAmount !== undefined ? { metadata: { expenseAmount } } : {}),
+      ...(effectiveExpense !== undefined ? { metadata: { expenseAmount: effectiveExpense } } : {}),
     });
 
     await this.notifyOnStatusChange(finalRequest, nextStatus, actor);
@@ -282,9 +474,11 @@ export const requestsService = {
     if (actor.role !== Role.CHIEF_TECHNICIAN && actor.role !== Role.SUPERADMIN) {
       throw AppError.forbidden("Faqat Bosh texnik zayavkalarni tartiblashi mumkin");
     }
+    // updateMany — oradan biror zayavka o'chirilgan bo'lsa ham xato bermaydi
+    // (update esa P2025 bilan yiqilardi).
     await prisma.$transaction(
       orderedIds.map((id, index) =>
-        prisma.request.update({ where: { id }, data: { sortOrder: index + 1 } })
+        prisma.request.updateMany({ where: { id }, data: { sortOrder: index + 1 } })
       )
     );
     return { success: true };
@@ -299,7 +493,7 @@ export const requestsService = {
 
     const categoryLabel = await categoriesService.getLabel(request.category);
 
-    // Texnik "Ishni boshlash" bosganda Bosh texnikka xabar boradi.
+    // Texnik "Ishni boshlash" bosganda mas'ul bosh texnikka xabar boradi.
     if (
       nextStatus === RequestStatus.IN_PROGRESS &&
       request.chiefTechnicianId &&
@@ -320,11 +514,17 @@ export const requestsService = {
       request.chiefTechnicianId !== actor?.userId
     ) {
       const workerName = request.technician?.fullName ?? "Texnik";
+      const expenseLine =
+        request.expenseAmount !== null && request.expenseAmount !== undefined
+          ? ` Kiritilgan harajat: ${Number(request.expenseAmount).toLocaleString("uz-UZ")} so'm.`
+          : "";
       await notificationsService.notify({
         userId: request.chiefTechnicianId,
         requestId: request.id,
         type: NotificationType.TECHNICIAN_COMPLETED,
-        text: `✅ ${workerName} ishni yakunladi: ${request.branch.name}, "${categoryLabel}". Harajat summasini kiritib, ishni yakunlashingiz kerak.`,
+        text:
+          `✅ ${workerName} ishni yakunladi: ${request.branch.name}, "${categoryLabel}".` +
+          `${expenseLine} Tekshirib, ishni yakunlashingiz kerak.`,
       });
     }
 
@@ -343,7 +543,7 @@ export const requestsService = {
         (u): u is string => !!u
       );
 
-      // Direktor va Bosh texnikka — formatlangan, oldin/keyin rasmlari bilan.
+      // Zayavka egasi va mas'ul Bosh texnikka — formatlangan, oldin/keyin rasmlari bilan.
       const cardRecipients = [request.createdById, request.chiefTechnicianId].filter(
         (id): id is string => !!id
       );
@@ -380,16 +580,12 @@ export const requestsService = {
   /**
    * Zayavkalar tarixini PDF yoki XLSX faylga eksport qilib, foydalanuvchining
    * Telegram bot chatiga hujjat sifatida yuboradi. Ko'rish doirasi list()
-   * bilan bir xil: Direktor — o'z filiali, Texnik — o'z ishlari,
-   * Bosh texnik va Superadmin — hammasi.
+   * bilan bir xil: Direktor/Filial menejeri — o'z filiali, Hududiy rahbar —
+   * biriktirilgan filiallari, Texnik — o'z ishlari, Bosh texnik/Rahbar/
+   * Superadmin — hammasi.
    */
   async exportHistory(filters: RequestFilters, format: "pdf" | "xlsx", actor: AuthTokenPayload) {
-    if (actor.role === Role.DIRECTOR) {
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
-      filters.branchId = user.branchId ?? "__none__";
-    } else if (actor.role === Role.TECHNICIAN) {
-      filters.technicianId = actor.userId;
-    }
+    await this.applyScope(filters, actor);
 
     const [items] = await requestsRepository.findMany(filters, 0, 2000);
     if (items.length === 0) {
@@ -403,7 +599,7 @@ export const requestsService = {
       }
     }
 
-    const rows: ExportRow[] = items.map((r) => ({
+    const rows: ExportRow[] = items.map((r: RequestWithRelations) => ({
       createdAt: r.createdAt,
       closedAt: r.closedAt,
       branchName: r.branch.name,
@@ -412,9 +608,11 @@ export const requestsService = {
       priority: r.priority,
       status: r.status,
       createdByName: r.createdBy.fullName,
+      createdByRoleLabel: ROLE_LABELS_UZ[r.createdBy.role as Role] ?? r.createdBy.role,
       chiefTechnicianName: r.chiefTechnician?.fullName ?? null,
       technicianName: r.technician?.fullName ?? null,
       expenseAmount: r.expenseAmount,
+      comment: r.comments?.[0]?.text ?? null,
     }));
 
     const stamp = new Date().toISOString().slice(0, 10);
@@ -485,33 +683,27 @@ export const requestsService = {
     return { success: true };
   },
 
-  async assertCanView(request: NonNullable<Awaited<ReturnType<typeof requestsRepository.findById>>>, actor: AuthTokenPayload) {
-    if (actor.role === Role.SUPERADMIN || actor.role === Role.CHIEF_TECHNICIAN) return;
-    if (actor.role === Role.DIRECTOR) {
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
-      if (request.branchId !== user.branchId) {
-        throw AppError.forbidden("Bu zayavka boshqa filialga tegishli");
-      }
-      return;
-    }
-    if (actor.role === Role.TECHNICIAN) {
+  async assertCanView(request: RequestWithRelations, actor: AuthTokenPayload) {
+    const scope = await resolveScope(actor);
+
+    if (scope.kind === "all") return;
+
+    if (scope.kind === "technician") {
       if (request.technicianId !== actor.userId) {
         throw AppError.forbidden("Bu zayavka sizga biriktirilmagan");
       }
       return;
     }
+
+    if (!scopeAllowsBranch(scope, request.branchId)) {
+      throw AppError.forbidden("Bu zayavka sizning filial(lar)ingizga tegishli emas");
+    }
   },
 
-  async assertCanActOnRequest(request: NonNullable<Awaited<ReturnType<typeof requestsRepository.findById>>>, actor: AuthTokenPayload) {
+  async assertCanActOnRequest(request: RequestWithRelations, actor: AuthTokenPayload) {
     await this.assertCanView(request, actor);
     if (actor.role === Role.TECHNICIAN && request.technicianId !== actor.userId) {
       throw AppError.forbidden("Bu zayavka sizga biriktirilmagan");
-    }
-    if (actor.role === Role.DIRECTOR && request.createdById !== actor.userId) {
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
-      if (request.branchId !== user.branchId) {
-        throw AppError.forbidden("Bu zayavka sizning filialingizga tegishli emas");
-      }
     }
   },
 };

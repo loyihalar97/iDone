@@ -4,6 +4,7 @@ import { useAuth } from "@/shared/hooks/useAuth";
 import { Spinner, Button } from "@/shared/ui/primitives";
 import { BottomNav } from "./BottomNav";
 import { Header } from "./Header";
+import { HOME_BY_ROLE, isManagerRole } from "@/shared/lib/roles";
 
 import { DirectorRequestsPage } from "@/pages/director/DirectorRequestsPage";
 import { DirectorClosedRequestsPage } from "@/pages/director/DirectorClosedRequestsPage";
@@ -12,19 +13,15 @@ import { ChiefAllRequestsPage } from "@/pages/chief-technician/ChiefAllRequestsP
 import { ChiefTechniciansPage } from "@/pages/chief-technician/ChiefTechniciansPage";
 import { TechnicianRequestsPage } from "@/pages/technician/TechnicianRequestsPage";
 import { TechnicianClosedRequestsPage } from "@/pages/technician/TechnicianClosedRequestsPage";
+import { ManagerRequestsPage } from "@/pages/manager/ManagerRequestsPage";
+import { ManagerClosedRequestsPage } from "@/pages/manager/ManagerClosedRequestsPage";
+import { ManagerNewRequestPage } from "@/pages/manager/ManagerNewRequestPage";
 import { SuperadminDashboardPage } from "@/pages/superadmin/SuperadminDashboardPage";
 import { SuperadminUsersPage } from "@/pages/superadmin/SuperadminUsersPage";
 import { SuperadminBranchesPage } from "@/pages/superadmin/SuperadminBranchesPage";
 import { SuperadminCategoriesPage } from "@/pages/superadmin/SuperadminCategoriesPage";
 import { SuperadminRequestsPage } from "@/pages/superadmin/SuperadminRequestsPage";
 import { RequestDetailPage } from "@/features/requests/RequestDetailPage";
-
-const HOME_BY_ROLE: Record<Role, string> = {
-  [Role.DIRECTOR]: "/director/requests",
-  [Role.CHIEF_TECHNICIAN]: "/chief/requests",
-  [Role.TECHNICIAN]: "/technician/requests",
-  [Role.SUPERADMIN]: "/superadmin/requests",
-};
 
 const TITLES: Record<string, string> = {
   "/director/requests": "Ochiq zayavkalar",
@@ -37,6 +34,11 @@ const TITLES: Record<string, string> = {
   "/technician/requests": "Ochiq ishlar",
   "/technician/closed": "Tugatilgan ishlar",
   "/technician/stats": "Statistika",
+  "/manager/requests": "Ochiq zayavkalar",
+  "/manager/closed": "Tarix va hisobotlar",
+  "/manager/new": "Yangi zayavka",
+  "/manager/technicians": "Texniklar nazorati",
+  "/manager/stats": "Statistika",
   "/superadmin/requests": "Barcha zayavkalar",
   "/superadmin/dashboard": "Statistika",
   "/superadmin/users": "Foydalanuvchilar",
@@ -77,6 +79,19 @@ function Shell({ role }: { role: Role }) {
             <Route path="/technician/requests" element={<TechnicianRequestsPage />} />
             <Route path="/technician/closed" element={<TechnicianClosedRequestsPage />} />
             <Route path="/technician/stats" element={<SuperadminDashboardPage />} />
+          </>
+        )}
+
+        {/* Rahbar / Hududiy rahbar / Filial menejeri uchun umumiy panel */}
+        {isManagerRole(role) && (
+          <>
+            <Route path="/manager/requests" element={<ManagerRequestsPage />} />
+            <Route path="/manager/closed" element={<ManagerClosedRequestsPage />} />
+            <Route path="/manager/new" element={<ManagerNewRequestPage />} />
+            <Route path="/manager/stats" element={<SuperadminDashboardPage />} />
+            {role === Role.EXECUTIVE && (
+              <Route path="/manager/technicians" element={<ChiefTechniciansPage />} />
+            )}
           </>
         )}
 

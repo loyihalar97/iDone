@@ -27,11 +27,19 @@ const TRANSITIONS: Transition[] = [
     to: RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN,
     allowedRoles: [Role.CHIEF_TECHNICIAN],
   },
-  // Direktor ishni qabul qilib zayavkani yopadi.
+  // Filial rahbari ishni qabul qilib zayavkani yopadi. Direktor va Filial
+  // menejeridan tashqari Hududiy rahbar va Rahbar ham qabul qila oladi —
+  // aks holda direktori yo'q filialdagi zayavka hech qachon yopilmay qolardi
+  // (ular baribir o'z ko'rish doirasidagi filiallar bilan cheklangan).
   {
     from: RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN,
     to: RequestStatus.ACCEPTED_BY_DIRECTOR,
-    allowedRoles: [Role.DIRECTOR],
+    allowedRoles: [
+      Role.DIRECTOR,
+      Role.BRANCH_MANAGER,
+      Role.REGIONAL_MANAGER,
+      Role.EXECUTIVE,
+    ],
   },
 ];
 

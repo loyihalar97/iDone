@@ -12,6 +12,13 @@ enum Role {
   chief_technician
   technician
   superadmin
+  // Hududiy rahbar — o'ziga biriktirilgan bir nechta filialni boshqaradi
+  // (biriktirish `user_branches` jadvali orqali).
+  regional_manager
+  // Rahbar — barcha filiallar, texniklar va kesimli hisobotlarni ko'radi.
+  executive
+  // Filial menejeri — faqat o'z filiali (users.branch_id) doirasida ishlaydi.
+  branch_manager
 }
 
 enum RequestStatus {
@@ -37,6 +44,8 @@ enum NotificationType {
   technician_completed
   chief_approved
   request_closed
+  request_comment
+  priority_changed
 }
 
 model Branch {
@@ -48,8 +57,25 @@ model Branch {
 
   users     User[]
   requests  Request[]
+  managers  UserBranch[]
 
   @@map("branches")
+}
+
+// Bir foydalanuvchini bir nechta filialga biriktirish uchun bog'lovchi jadval.
+// Asosan "Hududiy rahbar" uchun ishlatiladi: unga bir nechta filial
+// biriktiriladi va u faqat o'sha filiallarni ko'radi/boshqaradi.
+model UserBranch {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branchId  String   @map("branch_id")
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, branchId])
+  @@index([userId])
+  @@map("user_branches")
 }
 
 model User {
@@ -68,6 +94,9 @@ model User {
   technicianTasks      Request[] @relation("Technician")
   auditLogs            AuditLog[]
   notifications        Notification[]
+  // Hududiy rahbarga biriktirilgan filiallar.
+  managedBranches      UserBranch[]
+  comments             RequestComment[]
 
   @@map("users")
 }
@@ -109,6 +138,7 @@ model Request {
 
   statusHistory       RequestStatusHistory[]
   notifications       Notification[]
+  comments            RequestComment[]
 
   @@index([branchId])
   @@index([status])
@@ -127,6 +157,24 @@ model RequestStatusHistory {
   changedAt   DateTime      @default(now()) @map("changed_at")
 
   @@map("request_status_history")
+}
+
+// Zayavkaga yozilgan izohlar. Asosiy stsenariy: Bosh texnik ishni bajarish
+// imkonsiz bo'lgan zayavkaga texnik biriktirmasdan sababni yozadi
+// (isBlocker = true) — izoh filial direktorining bot chatiga ham boradi.
+model RequestComment {
+  id        String   @id @default(uuid())
+  requestId String   @map("request_id")
+  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  authorId  String   @map("author_id")
+  author    User     @relation(fields: [authorId], references: [id])
+  text      String
+  // true — "bu ishni bajarish imkonsiz" turidagi izoh.
+  isBlocker Boolean  @default(false) @map("is_blocker")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([requestId])
+  @@map("request_comments")
 }
 
 model AuditLog {

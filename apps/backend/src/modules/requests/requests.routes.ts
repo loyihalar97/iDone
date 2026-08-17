@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { Priority, RequestStatus, Role } from "@app/shared-types";
+import { Priority, REQUEST_CREATOR_ROLES, RequestStatus, Role } from "@app/shared-types";
 import { asyncHandler } from "../../core/errors/errorHandler";
 import { requireAuth, requireRole } from "../../core/middlewares/requireAuth";
 import { requestsService } from "./requests.service";
@@ -11,8 +11,8 @@ export const requestsRouter = Router();
 requestsRouter.use(requireAuth);
 
 const createSchema = z.object({
-  // Direktor uchun filial serverda o'zining profilidan olinadi; Superadmin
-  // boshqa filial nomidan ochsa, branchId yuborishi mumkin.
+  // Direktor va Filial menejeri uchun filial serverda profildan olinadi;
+  // Hududiy rahbar / Rahbar / Superadmin filialni tanlab yuboradi.
   branchId: z.string().uuid().optional(),
   category: z.string().min(1).max(60),
   description: z.string().min(3).max(2000),
@@ -22,7 +22,7 @@ const createSchema = z.object({
 
 requestsRouter.post(
   "/",
-  requireRole(Role.DIRECTOR, Role.SUPERADMIN),
+  requireRole(...REQUEST_CREATOR_ROLES),
   asyncHandler(async (req, res) => {
     const input = createSchema.parse(req.body);
     const request = await requestsService.create(input, req.auth!);
@@ -36,6 +36,10 @@ const listQuerySchema = z.object({
   priority: z.nativeEnum(Priority).optional(),
   category: z.string().min(1).max(60).optional(),
   technicianId: z.string().uuid().optional(),
+  chiefTechnicianId: z.string().uuid().optional(),
+  // Rahbar uchun kesimlar: kim ochgani va qaysi lavozim ochgani bo'yicha.
+  createdById: z.string().uuid().optional(),
+  createdByRole: z.nativeEnum(Role).optional(),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
   page: z.coerce.number().min(1).default(1),
@@ -83,6 +87,31 @@ requestsRouter.get(
   })
 );
 
+// ── Izohlar ────────────────────────────────────────────────────────────────
+// Bosh texnik bajarish imkonsiz bo'lgan zayavkaga texnik biriktirmasdan
+// sabab izohini yozadi; izoh filial direktorining bot chatiga ham boradi.
+
+requestsRouter.get(
+  "/:id/comments",
+  asyncHandler(async (req, res) => {
+    res.json(await requestsService.listComments(req.params.id, req.auth!));
+  })
+);
+
+const commentSchema = z.object({
+  text: z.string().min(3).max(2000),
+  isBlocker: z.boolean().optional(),
+});
+
+requestsRouter.post(
+  "/:id/comments",
+  requireRole(Role.CHIEF_TECHNICIAN, Role.SUPERADMIN),
+  asyncHandler(async (req, res) => {
+    const input = commentSchema.parse(req.body);
+    res.status(201).json(await requestsService.addComment(req.params.id, input, req.auth!));
+  })
+);
+
 const assignSchema = z.object({ technicianId: z.string().uuid() });
 
 requestsRouter.patch(
@@ -95,10 +124,23 @@ requestsRouter.patch(
   })
 );
 
+// Muhimlik darajasini o'zgartirish — faqat Bosh texnik.
+const prioritySchema = z.object({ priority: z.nativeEnum(Priority) });
+
+requestsRouter.patch(
+  "/:id/priority",
+  requireRole(Role.CHIEF_TECHNICIAN, Role.SUPERADMIN),
+  asyncHandler(async (req, res) => {
+    const { priority } = prioritySchema.parse(req.body);
+    res.json(await requestsService.changePriority(req.params.id, priority, req.auth!));
+  })
+);
+
 const statusSchema = z.object({
   status: z.nativeEnum(RequestStatus),
   afterPhotoUrl: z.string().url().optional(),
-  // Bosh texnik ishni yakunlashda kiritadigan harajat summasi (so'm, 0 mumkin).
+  // Harajat summasi (so'm, 0 mumkin). Texnik ham, Bosh texnik ham kiritishi
+  // mumkin; texnik kiritmasa avtomatik 0 yoziladi.
   expenseAmount: z.number().min(0).optional(),
 });
 

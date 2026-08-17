@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Role, ROLE_LABELS_UZ } from "@app/shared-types";
 import { usersApi } from "@/shared/api";
 import { Card, Spinner, EmptyState, StatusPill } from "@/shared/ui/primitives";
 import { Users } from "lucide-react";
@@ -34,7 +35,7 @@ export function ChiefTechniciansPage() {
               <div className="min-w-0">
                 <p className="font-extrabold text-tg-text text-[14.5px] truncate">{t.fullName}</p>
                 <p className="text-[12px] font-semibold text-tg-hint mt-0.5">
-                  {t.branchName ?? "Barcha filiallar"}
+                  {ROLE_LABELS_UZ[t.role as Role] ?? t.role} · {t.branchName ?? "Barcha filiallar"}
                 </p>
               </div>
               <StatusPill active={t.isActive} />

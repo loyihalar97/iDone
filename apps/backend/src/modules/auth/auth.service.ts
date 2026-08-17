@@ -49,18 +49,39 @@ export const authService = {
     }
 
     const token = signToken({ userId: user.id, role: user.role as Role });
-    return { token, user };
+    // Biriktirilgan filiallar bilan birga qaytaramiz (Hududiy rahbar uchun).
+    return { token, user: await this.me(user.id) };
   },
 
   async me(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { branch: true },
+      include: {
+        branch: true,
+        managedBranches: { include: { branch: { select: { id: true, name: true } } } },
+      },
     });
     if (!user) throw AppError.notFound("Foydalanuvchi topilmadi");
     return user;
   },
 };
+
+/** Frontendga yuboriladigan foydalanuvchi ko'rinishi. */
+export function toCurrentUserDto(user: any) {
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    role: user.role,
+    branchId: user.branchId,
+    branchName: user.branch?.name ?? null,
+    // Hududiy rahbarga biriktirilgan filiallar.
+    managedBranches: (user.managedBranches ?? []).map((mb: any) => ({
+      id: mb.branch.id,
+      name: mb.branch.name,
+    })),
+    isActive: user.isActive,
+  };
+}
 
 export function signToken(payload: AuthTokenPayload): string {
   const options: jwt.SignOptions = { expiresIn: config.jwtExpiresIn as jwt.SignOptions["expiresIn"] };

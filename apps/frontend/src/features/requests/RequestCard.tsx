@@ -3,7 +3,7 @@ import { Thumb } from "@/shared/ui/primitives";
 import { PriorityBadge, StatusBadge, priorityBarClass } from "@/shared/ui/Badges";
 import { useCategoryLabels } from "@/shared/hooks/useCategories";
 import { Link } from "react-router-dom";
-import { User, ImageIcon } from "lucide-react";
+import { User, ImageIcon, AlertTriangle } from "lucide-react";
 
 function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -19,6 +19,8 @@ function relativeTime(iso: string): string {
 
 export function RequestCard({ request }: { request: RequestItem }) {
   const { labelFor } = useCategoryLabels();
+  // Bosh texnik "bajarish imkonsiz" izohini yozganini ro'yxatda ham ko'rsatamiz.
+  const hasBlocker = (request.comments ?? []).some((c) => c.isBlocker);
   return (
     <Link to={`/requests/${request.id}`}>
       <div
@@ -50,6 +52,12 @@ export function RequestCard({ request }: { request: RequestItem }) {
         <div className="flex items-center gap-1.5 flex-wrap mt-3">
           <StatusBadge status={request.status} />
           <PriorityBadge priority={request.priority} />
+          {hasBlocker && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-priority-critical/10 text-priority-critical text-[10.5px] font-bold">
+              <AlertTriangle size={10} strokeWidth={2.5} />
+              Izoh bor
+            </span>
+          )}
           {request.technician ? (
             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-inkFaint ml-auto">
               <User size={11} strokeWidth={2} />

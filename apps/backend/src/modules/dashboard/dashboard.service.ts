@@ -16,16 +16,31 @@ function startOfMonth() {
 
 export interface DashboardScope {
   branchId?: string;
+  /** Ruxsat etilgan filiallar (Hududiy rahbar — bir nechta). */
+  branchIds?: string[];
   technicianId?: string;
 }
 
 export const dashboardService = {
   async getStats(scope: DashboardScope = {}) {
+    const branchWhere = scope.branchIds
+      ? { branchId: { in: scope.branchIds } }
+      : scope.branchId
+        ? { branchId: scope.branchId }
+        : {};
+
     const scopeWhere = {
-      ...(scope.branchId ? { branchId: scope.branchId } : {}),
+      ...branchWhere,
       ...(scope.technicianId ? { technicianId: scope.technicianId } : {}),
     };
-    const isScoped = !!scope.branchId || !!scope.technicianId;
+
+    // Filial va texnik kesimidagi taqsimot bitta filial yoki bitta texnik
+    // doirasida mantiqsiz — u faqat ko'p filialli ko'rinishda chiqariladi
+    // (Hududiy rahbar, Rahbar, Bosh texnik, Superadmin).
+    const isScoped =
+      !!scope.technicianId ||
+      !!scope.branchId ||
+      (!!scope.branchIds && scope.branchIds.length <= 1);
 
     const [openCount, inProgressCount, closedTodayCount, closedThisMonthCount, closedRequests, branchGroups, technicianGroups] =
       await Promise.all([
@@ -61,6 +76,9 @@ export const dashboardService = {
           : prisma.request.groupBy({
               by: ["branchId"],
               _count: { _all: true },
+              // DIQQAT: taqsimot ham foydalanuvchi doirasi bilan cheklanadi —
+              // aks holda Hududiy rahbar begona filiallar nomini ko'rib qolardi.
+              where: scopeWhere,
               orderBy: { _count: { branchId: "desc" } },
               take: 5,
             }),
@@ -69,7 +87,7 @@ export const dashboardService = {
           : prisma.request.groupBy({
               by: ["technicianId"],
               _count: { _all: true },
-              where: { technicianId: { not: null } },
+              where: { ...scopeWhere, technicianId: { not: null } },
               orderBy: { _count: { technicianId: "desc" } },
               take: 5,
             }),

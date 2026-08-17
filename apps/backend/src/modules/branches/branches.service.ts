@@ -45,11 +45,13 @@ export const branchesService = {
     const branch = await prisma.branch.findUnique({ where: { id } });
     if (!branch) throw AppError.notFound("Filial topilmadi");
 
-    const [userCount, requestCount] = await Promise.all([
+    const [userCount, requestCount, managerCount] = await Promise.all([
       prisma.user.count({ where: { branchId: id } }),
       prisma.request.count({ where: { branchId: id } }),
+      // Hududiy rahbarlarga biriktirilgan bo'lsa ham o'chirishga yo'l qo'ymaymiz.
+      prisma.userBranch.count({ where: { branchId: id } }),
     ]);
-    if (userCount > 0 || requestCount > 0) {
+    if (userCount > 0 || requestCount > 0 || managerCount > 0) {
       throw AppError.validation(
         "Bu filialga bog'liq xodim yoki zayavkalar bor. O'chirish o'rniga uni faolsizlantiring."
       );

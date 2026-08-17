@@ -1,18 +1,35 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Role } from "@app/shared-types";
+import { Role, ROLE_LABELS_UZ } from "@app/shared-types";
 import { usersApi, branchesApi, UserItem } from "@/shared/api";
-import { Card, Spinner, EmptyState, Select, Button, StatusPill } from "@/shared/ui/primitives";
+import { Card, Spinner, EmptyState, Select, Button, StatusPill, Label } from "@/shared/ui/primitives";
 import { SwipeRow } from "@/shared/ui/SwipeRow";
 import { telegram, confirmDialog } from "@/shared/telegram/webapp";
 import { Users, Check, Pencil, Trash2, Power, X } from "lucide-react";
 
-const ROLE_LABELS: Record<Role, string> = {
-  [Role.DIRECTOR]: "Filial direktori",
-  [Role.CHIEF_TECHNICIAN]: "Bosh texnik",
-  [Role.TECHNICIAN]: "Texnik",
-  [Role.SUPERADMIN]: "Superadmin",
-};
+/** Superadmin panelida tanlash mumkin bo'lgan lavozimlar tartibi. */
+const ROLE_ORDER: Role[] = [
+  Role.DIRECTOR,
+  Role.BRANCH_MANAGER,
+  Role.REGIONAL_MANAGER,
+  Role.EXECUTIVE,
+  Role.CHIEF_TECHNICIAN,
+  Role.TECHNICIAN,
+  Role.SUPERADMIN,
+];
+
+/** Bitta filial biriktiriladigan lavozimlar. */
+const SINGLE_BRANCH_ROLES: Role[] = [Role.DIRECTOR, Role.BRANCH_MANAGER, Role.TECHNICIAN];
+
+function branchSummary(user: UserItem): string {
+  if (user.role === Role.REGIONAL_MANAGER) {
+    const names = (user.managedBranches ?? []).map((mb) => mb.branch.name);
+    return names.length > 0 ? names.join(", ") : "Filiallar biriktirilmagan";
+  }
+  if (user.branch?.name) return user.branch.name;
+  if (user.role === Role.TECHNICIAN) return "Barcha filiallar";
+  return "";
+}
 
 function UserRow({ user }: { user: UserItem }) {
   const queryClient = useQueryClient();
@@ -24,6 +41,9 @@ function UserRow({ user }: { user: UserItem }) {
   const [editing, setEditing] = useState(false);
   const [role, setRole] = useState<Role>(user.role);
   const [branchId, setBranchId] = useState<string>(user.branchId ?? "");
+  const [branchIds, setBranchIds] = useState<string[]>(
+    (user.managedBranches ?? []).map((mb) => mb.branchId)
+  );
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["users"] });
 
@@ -32,7 +52,9 @@ function UserRow({ user }: { user: UserItem }) {
       usersApi.assignRole(user.id, {
         role,
         // Texnik uchun bo'sh qiymat = barcha filiallar (null).
-        branchId: role === Role.DIRECTOR || role === Role.TECHNICIAN ? branchId || null : null,
+        branchId: SINGLE_BRANCH_ROLES.includes(role) ? branchId || null : null,
+        // Hududiy rahbar uchun ko'p filial biriktiruvi.
+        ...(role === Role.REGIONAL_MANAGER ? { branchIds } : {}),
       }),
     onSuccess: () => {
       telegram.HapticFeedback.notificationOccurred("success");
@@ -62,10 +84,20 @@ function UserRow({ user }: { user: UserItem }) {
     },
   });
 
-  // Direktor uchun filial MAJBURIY. Texnik uchun ixtiyoriy:
-  // tanlanmasa — texnik BARCHA filiallarga biriktiriladi.
-  const showsBranch = role === Role.DIRECTOR || role === Role.TECHNICIAN;
-  const branchRequired = role === Role.DIRECTOR;
+  // Direktor va Filial menejeri uchun filial MAJBURIY. Texnik uchun ixtiyoriy
+  // (tanlanmasa — barcha filiallar). Hududiy rahbar uchun ko'p filial.
+  const showsSingleBranch = SINGLE_BRANCH_ROLES.includes(role);
+  const branchRequired = role === Role.DIRECTOR || role === Role.BRANCH_MANAGER;
+  const showsMultiBranch = role === Role.REGIONAL_MANAGER;
+
+  const saveDisabled =
+    roleMutation.isPending ||
+    (branchRequired && !branchId) ||
+    (showsMultiBranch && branchIds.length === 0);
+
+  function toggleBranch(id: string) {
+    setBranchIds((prev) => (prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]));
+  }
 
   async function handleDelete() {
     const ok = await confirmDialog(
@@ -76,6 +108,8 @@ function UserRow({ user }: { user: UserItem }) {
     if (ok) deleteMutation.mutate();
   }
 
+  const summary = branchSummary(user);
+
   const header = (
     <Card>
       <div className="flex items-start justify-between gap-2">
@@ -85,12 +119,8 @@ function UserRow({ user }: { user: UserItem }) {
           </p>
           <p className="font-num text-[11px] text-inkFaint mt-0.5">TG ID {user.telegramId}</p>
           <p className="text-[12px] font-semibold text-tg-hint mt-1">
-            {ROLE_LABELS[user.role]}
-            {user.branch?.name
-              ? ` · ${user.branch.name}`
-              : user.role === Role.TECHNICIAN
-                ? " · Barcha filiallar"
-                : ""}
+            {ROLE_LABELS_UZ[user.role]}
+            {summary ? ` · ${summary}` : ""}
           </p>
         </div>
         <StatusPill active={user.isActive} />
@@ -130,20 +160,20 @@ function UserRow({ user }: { user: UserItem }) {
 
       {editing && (
         <Card className="mt-1.5 !bg-tg-secondaryBg">
-          <div className="grid grid-cols-2 gap-2 mb-2.5">
+          <div className={`grid ${showsSingleBranch ? "grid-cols-2" : "grid-cols-1"} gap-2 mb-2.5`}>
             <Select
               value={role}
               onChange={(e) => setRole(e.target.value as Role)}
               className="text-xs py-2"
             >
-              {Object.entries(ROLE_LABELS).map(([value, label]) => (
+              {ROLE_ORDER.map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {ROLE_LABELS_UZ[value]}
                 </option>
               ))}
             </Select>
 
-            {showsBranch && (
+            {showsSingleBranch && (
               <Select
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value)}
@@ -161,12 +191,47 @@ function UserRow({ user }: { user: UserItem }) {
             )}
           </div>
 
+          {showsMultiBranch && (
+            <div className="mb-2.5">
+              <Label>Biriktiriladigan filiallar (kamida bitta)</Label>
+              <div className="max-h-52 overflow-y-auto rounded-control border border-line bg-tg-bg divide-y divide-line">
+                {(branches ?? []).map((b) => {
+                  const checked = branchIds.includes(b.id);
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => toggleBranch(b.id)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left active:opacity-70"
+                    >
+                      <span
+                        className={`w-4 h-4 rounded-[5px] border-[1.5px] flex items-center justify-center flex-shrink-0 transition ${
+                          checked ? "bg-accent border-accent text-white" : "border-lineStrong"
+                        }`}
+                      >
+                        {checked && <Check size={11} strokeWidth={3} />}
+                      </span>
+                      <span className="text-[13px] font-semibold text-tg-text truncate">{b.name}</span>
+                    </button>
+                  );
+                })}
+                {(branches ?? []).length === 0 && (
+                  <p className="px-3 py-3 text-[12.5px] text-tg-hint">
+                    Avval "Filiallar" bo'limida filial qo'shing.
+                  </p>
+                )}
+              </div>
+              <p className="text-[11.5px] text-tg-hint mt-1.5">
+                Tanlangan: {branchIds.length} ta filial
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <Button
               variant="secondary"
               icon={Check}
               className="flex-1 !text-xs"
-              disabled={roleMutation.isPending || (branchRequired && !branchId)}
+              disabled={saveDisabled}
               onClick={() => roleMutation.mutate()}
             >
               Saqlash

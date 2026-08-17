@@ -7,6 +7,8 @@ export interface CurrentUser {
   role: Role;
   branchId: string | null;
   branchName?: string | null;
+  /** Hududiy rahbarga biriktirilgan filiallar. */
+  managedBranches: { id: string; name: string }[];
   isActive: boolean;
 }
 

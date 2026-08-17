@@ -24,6 +24,15 @@ export interface UserItem {
   branchId: string | null;
   isActive: boolean;
   branch?: { name: string } | null;
+  /** Hududiy rahbarga biriktirilgan filiallar. */
+  managedBranches?: { branchId: string; branch: { id: string; name: string } }[];
+}
+
+export interface AssignableUser {
+  id: string;
+  fullName: string;
+  branchId: string | null;
+  role: Role;
 }
 
 export const usersApi = {
@@ -31,7 +40,7 @@ export const usersApi = {
     apiClient.get<UserItem[]>("/users", { params: filters }),
 
   technicians: (branchId?: string) =>
-    apiClient.get<{ id: string; fullName: string; branchId: string | null }[]>("/users/technicians", {
+    apiClient.get<AssignableUser[]>("/users/technicians", {
       params: { branchId },
     }),
 
@@ -41,8 +50,10 @@ export const usersApi = {
   techniciansOverview: () =>
     apiClient.get<TechnicianOverview[]>("/users/technicians/overview"),
 
-  assignRole: (id: string, data: { role: Role; branchId?: string | null; isActive?: boolean }) =>
-    apiClient.patch<UserItem>(`/users/${id}/role`, data),
+  assignRole: (
+    id: string,
+    data: { role: Role; branchId?: string | null; branchIds?: string[]; isActive?: boolean }
+  ) => apiClient.patch<UserItem>(`/users/${id}/role`, data),
 
   setActive: (id: string, isActive: boolean) =>
     apiClient.patch<UserItem>(`/users/${id}/active`, { isActive }),
@@ -53,6 +64,7 @@ export const usersApi = {
 export interface TechnicianOverview {
   id: string;
   fullName: string;
+  role: Role;
   isActive: boolean;
   branchName: string | null; // null — barcha filiallar
   newCount: number;

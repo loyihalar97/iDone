@@ -33,7 +33,7 @@ export function SuperadminRequestsPage() {
 
   return (
     <div>
-      <RequestFiltersBar filters={filters} onChange={setFilters} />
+      <RequestFiltersBar filters={filters} onChange={setFilters} showPeopleFilters />
       <RequestList
         items={data?.items}
         isLoading={isLoading}

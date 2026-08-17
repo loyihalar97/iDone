@@ -1,11 +1,19 @@
 import { apiClient } from "./client";
-import { Priority, RequestStatus } from "@app/shared-types";
+import { Priority, RequestStatus, Role } from "@app/shared-types";
+
+export interface RequestComment {
+  id: string;
+  text: string;
+  isBlocker: boolean;
+  createdAt: string;
+  author: { id: string; fullName: string; role: Role };
+}
 
 export interface RequestItem {
   id: string;
   branchId: string;
   branch: { id: string; name: string };
-  createdBy: { id: string; fullName: string };
+  createdBy: { id: string; fullName: string; role: Role };
   chiefTechnician: { id: string; fullName: string } | null;
   technician: { id: string; fullName: string } | null;
   category: string;
@@ -16,6 +24,7 @@ export interface RequestItem {
   afterPhotoUrl: string | null;
   expenseAmount: number | null;
   sortOrder: number;
+  comments?: RequestComment[];
   createdAt: string;
   closedAt: string | null;
 }
@@ -33,6 +42,11 @@ export interface RequestFilters {
   priority?: Priority;
   category?: string;
   technicianId?: string;
+  chiefTechnicianId?: string;
+  /** Kim ochgani bo'yicha (Rahbar hisobotlari uchun). */
+  createdById?: string;
+  /** Qaysi lavozim ochgani bo'yicha (Rahbar hisobotlari uchun). */
+  createdByRole?: Role;
   page?: number;
   pageSize?: number;
 }
@@ -44,6 +58,8 @@ export const requestsApi = {
   getById: (id: string) => apiClient.get<RequestItem>(`/requests/${id}`),
 
   create: (data: {
+    /** Direktor va Filial menejeri uchun shart emas — server profildan oladi. */
+    branchId?: string;
     category: string;
     description: string;
     priority: Priority;
@@ -55,6 +71,16 @@ export const requestsApi = {
 
   changeStatus: (id: string, status: RequestStatus, afterPhotoUrl?: string, expenseAmount?: number) =>
     apiClient.patch<RequestItem>(`/requests/${id}/status`, { status, afterPhotoUrl, expenseAmount }),
+
+  /** Muhimlik darajasini o'zgartirish — faqat Bosh texnik. */
+  changePriority: (id: string, priority: Priority) =>
+    apiClient.patch<RequestItem>(`/requests/${id}/priority`, { priority }),
+
+  /** Zayavka izohlari (bosh texnikning "bajarish imkonsiz" sabablari). */
+  comments: (id: string) => apiClient.get<RequestComment[]>(`/requests/${id}/comments`),
+
+  addComment: (id: string, text: string, isBlocker = true) =>
+    apiClient.post<RequestComment>(`/requests/${id}/comments`, { text, isBlocker }),
 
   // Bosh texnik drag-and-drop orqali ish ketma-ketligini saqlaydi.
   reorder: (orderedIds: string[]) =>

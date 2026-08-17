@@ -135,7 +135,7 @@ export function ChiefAllRequestsPage() {
 
   return (
     <div>
-      <RequestFiltersBar filters={filters} onChange={setFilters} />
+      <RequestFiltersBar filters={filters} onChange={setFilters} showPeopleFilters />
       <div className="px-4 pb-3 -mt-1">
         <button
           onClick={enterSortMode}

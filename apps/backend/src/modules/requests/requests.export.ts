@@ -19,9 +19,13 @@ export interface ExportRow {
   priority: string;
   status: string;
   createdByName: string;
+  /** Zayavkani ochgan xodimning lavozimi (Rahbar hisobotlari uchun). */
+  createdByRoleLabel: string;
   chiefTechnicianName: string | null;
   technicianName: string | null;
   expenseAmount: number | null;
+  /** Oxirgi izoh (masalan bosh texnikning "bajarish imkonsiz" sababi). */
+  comment: string | null;
 }
 
 const COLUMNS = [
@@ -32,12 +36,17 @@ const COLUMNS = [
   { header: "Tavsif", width: 40 },
   { header: "Muhimlik", width: 11 },
   { header: "Holat", width: 18 },
-  { header: "Direktor", width: 20 },
+  { header: "Yaratuvchi", width: 20 },
+  { header: "Lavozimi", width: 16 },
   { header: "Bosh texnik", width: 20 },
   { header: "Texnik", width: 20 },
   { header: "Harajat (so'm)", width: 14 },
+  { header: "Izoh", width: 32 },
   { header: "Yopilgan sana", width: 16 },
 ];
+
+/** XLSX'dagi "Harajat" ustunining tartib raqami (1-based). */
+const EXPENSE_COL = 12;
 
 function formatDate(d: Date | null): string {
   if (!d) return "—";
@@ -61,9 +70,11 @@ function rowToCells(row: ExportRow, index: number): (string | number)[] {
     PRIORITY_LABELS_UZ[row.priority as Priority] ?? row.priority,
     STATUS_LABELS_UZ[row.status as RequestStatus] ?? row.status,
     row.createdByName,
+    row.createdByRoleLabel,
     row.chiefTechnicianName ?? "—",
     row.technicianName ?? "—",
     row.expenseAmount ?? "—",
+    row.comment ?? "—",
     formatDate(row.closedAt),
   ];
 }
@@ -86,7 +97,7 @@ export async function buildXlsx(rows: ExportRow[], title: string): Promise<Buffe
   rows.forEach((row, i) => {
     const r = sheet.addRow(rowToCells(row, i));
     r.alignment = { vertical: "top", wrapText: true };
-    const expenseCell = r.getCell(11);
+    const expenseCell = r.getCell(EXPENSE_COL);
     if (typeof expenseCell.value === "number") {
       expenseCell.numFmt = "#,##0";
     }
@@ -94,9 +105,12 @@ export async function buildXlsx(rows: ExportRow[], title: string): Promise<Buffe
 
   // Umumiy harajat qatori
   const total = rows.reduce((sum, r) => sum + (r.expenseAmount ?? 0), 0);
-  const totalRow = sheet.addRow(["", "", "", "", "", "", "", "", "", "Jami harajat:", total, ""]);
+  const totalCells: (string | number)[] = COLUMNS.map(() => "");
+  totalCells[EXPENSE_COL - 2] = "Jami harajat:";
+  totalCells[EXPENSE_COL - 1] = total;
+  const totalRow = sheet.addRow(totalCells);
   totalRow.font = { bold: true };
-  totalRow.getCell(11).numFmt = "#,##0";
+  totalRow.getCell(EXPENSE_COL).numFmt = "#,##0";
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer as ArrayBuffer);
@@ -129,15 +143,16 @@ export function buildPdf(rows: ExportRow[], title: string): Promise<Buffer> {
     const pageWidth = doc.page.width - 48;
     // PDFda ustunlarni birlashtirilgan holda beramiz (kengroq o'qish uchun)
     const cols = [
-      { key: "n", label: "№", w: 0.035 },
-      { key: "date", label: "Sana", w: 0.1 },
-      { key: "branch", label: "Filial", w: 0.11 },
-      { key: "category", label: "Kategoriya", w: 0.1 },
-      { key: "desc", label: "Tavsif", w: 0.24 },
-      { key: "status", label: "Holat", w: 0.1 },
-      { key: "people", label: "Mas'ullar", w: 0.16 },
-      { key: "expense", label: "Harajat", w: 0.075 },
-      { key: "closed", label: "Yopilgan", w: 0.1 },
+      { key: "n", label: "№", w: 0.03 },
+      { key: "date", label: "Sana", w: 0.09 },
+      { key: "branch", label: "Filial", w: 0.1 },
+      { key: "category", label: "Kategoriya", w: 0.09 },
+      { key: "desc", label: "Tavsif", w: 0.19 },
+      { key: "status", label: "Holat", w: 0.09 },
+      { key: "people", label: "Mas'ullar", w: 0.155 },
+      { key: "expense", label: "Harajat", w: 0.07 },
+      { key: "comment", label: "Izoh", w: 0.11 },
+      { key: "closed", label: "Yopilgan", w: 0.075 },
     ];
 
     doc.font(boldFont).fontSize(14).text(title, { align: "left" });
@@ -176,13 +191,21 @@ export function buildPdf(rows: ExportRow[], title: string): Promise<Buffer> {
         desc: row.description.length > 220 ? row.description.slice(0, 220) + "…" : row.description,
         status: STATUS_LABELS_UZ[row.status as RequestStatus] ?? row.status,
         people: [
-          row.createdByName ? `D: ${row.createdByName}` : null,
+          row.createdByName ? `${row.createdByRoleLabel}: ${row.createdByName}` : null,
           row.chiefTechnicianName ? `BT: ${row.chiefTechnicianName}` : null,
           row.technicianName ? `T: ${row.technicianName}` : null,
         ]
           .filter(Boolean)
           .join("\n"),
-        expense: row.expenseAmount !== null ? row.expenseAmount.toLocaleString("uz-UZ") : "—",
+        expense:
+          row.expenseAmount !== null && row.expenseAmount !== undefined
+            ? row.expenseAmount.toLocaleString("uz-UZ")
+            : "—",
+        comment: row.comment
+          ? row.comment.length > 160
+            ? row.comment.slice(0, 160) + "…"
+            : row.comment
+          : "—",
         closed: formatDate(row.closedAt),
       };
 

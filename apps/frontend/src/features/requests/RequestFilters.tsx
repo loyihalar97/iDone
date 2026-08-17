@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { STATUS_LABELS_UZ, Priority, RequestStatus } from "@app/shared-types";
-import { branchesApi } from "@/shared/api";
+import {
+  REQUEST_CREATOR_ROLES,
+  ROLE_LABELS_UZ,
+  STATUS_LABELS_UZ,
+  Priority,
+  RequestStatus,
+  Role,
+} from "@app/shared-types";
+import { branchesApi, usersApi } from "@/shared/api";
 import { RequestFilters as Filters } from "@/shared/api/requests";
 import { Select } from "@/shared/ui/primitives";
 import { SlidersHorizontal } from "lucide-react";
@@ -9,6 +16,11 @@ import { SlidersHorizontal } from "lucide-react";
 interface Props {
   filters: Filters;
   onChange: (f: Filters) => void;
+  /**
+   * Texnik / yaratuvchi / lavozim kesimidagi filtrlarni ko'rsatish.
+   * Rahbar, Bosh texnik va Superadmin uchun yoqiladi.
+   */
+  showPeopleFilters?: boolean;
 }
 
 const STATUS_CHIPS: { value: RequestStatus | undefined; label: string }[] = [
@@ -18,14 +30,35 @@ const STATUS_CHIPS: { value: RequestStatus | undefined; label: string }[] = [
   { value: RequestStatus.CLOSED, label: STATUS_LABELS_UZ[RequestStatus.CLOSED] },
 ];
 
-export function RequestFiltersBar({ filters, onChange }: Props) {
+export function RequestFiltersBar({ filters, onChange, showPeopleFilters = false }: Props) {
   const [showMore, setShowMore] = useState(false);
   const { data: branches } = useQuery({
     queryKey: ["branches"],
     queryFn: () => branchesApi.list(true).then((r) => r.data),
   });
 
-  const hasExtraFilters = !!filters.branchId || !!filters.priority;
+  const { data: technicians } = useQuery({
+    queryKey: ["technicians", "all"],
+    queryFn: () => usersApi.technicians().then((r) => r.data),
+    enabled: showPeopleFilters,
+  });
+
+  const { data: allUsers } = useQuery({
+    queryKey: ["users", "creators"],
+    queryFn: () => usersApi.list().then((r) => r.data),
+    enabled: showPeopleFilters,
+  });
+
+  const creators = (allUsers ?? []).filter((u) => REQUEST_CREATOR_ROLES.includes(u.role));
+
+  const hasExtraFilters =
+    !!filters.branchId ||
+    !!filters.priority ||
+    !!filters.technicianId ||
+    !!filters.createdById ||
+    !!filters.createdByRole;
+
+  const pill = "!w-auto flex-shrink-0 !rounded-pill text-xs py-2 bg-tg-secondaryBg";
 
   return (
     <div className="pt-3 pb-3">
@@ -67,7 +100,7 @@ export function RequestFiltersBar({ filters, onChange }: Props) {
           <Select
             value={filters.status ?? ""}
             onChange={(e) => onChange({ ...filters, status: (e.target.value || undefined) as RequestStatus })}
-            className="!w-auto flex-shrink-0 !rounded-pill text-xs py-2 bg-tg-secondaryBg"
+            className={pill}
           >
             <option value="">Barcha statuslar</option>
             {Object.entries(STATUS_LABELS_UZ).map(([value, label]) => (
@@ -80,7 +113,7 @@ export function RequestFiltersBar({ filters, onChange }: Props) {
           <Select
             value={filters.branchId ?? ""}
             onChange={(e) => onChange({ ...filters, branchId: e.target.value || undefined })}
-            className="!w-auto flex-shrink-0 !rounded-pill text-xs py-2 bg-tg-secondaryBg"
+            className={pill}
           >
             <option value="">Barcha filiallar</option>
             {branches?.map((b) => (
@@ -93,7 +126,7 @@ export function RequestFiltersBar({ filters, onChange }: Props) {
           <Select
             value={filters.priority ?? ""}
             onChange={(e) => onChange({ ...filters, priority: (e.target.value || undefined) as Priority })}
-            className="!w-auto flex-shrink-0 !rounded-pill text-xs py-2 bg-tg-secondaryBg"
+            className={pill}
           >
             <option value="">Barcha darajalar</option>
             <option value={Priority.LOW}>Past</option>
@@ -101,6 +134,51 @@ export function RequestFiltersBar({ filters, onChange }: Props) {
             <option value={Priority.HIGH}>Yuqori</option>
             <option value={Priority.CRITICAL}>Kritik</option>
           </Select>
+
+          {showPeopleFilters && (
+            <>
+              <Select
+                value={filters.technicianId ?? ""}
+                onChange={(e) => onChange({ ...filters, technicianId: e.target.value || undefined })}
+                className={pill}
+              >
+                <option value="">Barcha texniklar</option>
+                {technicians?.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.fullName}
+                  </option>
+                ))}
+              </Select>
+
+              <Select
+                value={filters.createdById ?? ""}
+                onChange={(e) => onChange({ ...filters, createdById: e.target.value || undefined })}
+                className={pill}
+              >
+                <option value="">Barcha yaratuvchilar</option>
+                {creators.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullName}
+                  </option>
+                ))}
+              </Select>
+
+              <Select
+                value={filters.createdByRole ?? ""}
+                onChange={(e) =>
+                  onChange({ ...filters, createdByRole: (e.target.value || undefined) as Role })
+                }
+                className={pill}
+              >
+                <option value="">Barcha lavozimlar</option>
+                {REQUEST_CREATOR_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABELS_UZ[r]}
+                  </option>
+                ))}
+              </Select>
+            </>
+          )}
         </div>
       )}
     </div>

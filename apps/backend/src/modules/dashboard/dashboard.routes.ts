@@ -1,8 +1,7 @@
 import { Router } from "express";
-import { Role } from "@app/shared-types";
 import { asyncHandler } from "../../core/errors/errorHandler";
 import { requireAuth } from "../../core/middlewares/requireAuth";
-import { prisma } from "../../core/database/prisma";
+import { resolveScope } from "../../core/access/scope";
 import { dashboardService, DashboardScope } from "./dashboard.service";
 
 export const dashboardRouter = Router();
@@ -11,19 +10,19 @@ dashboardRouter.get(
   "/stats",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const actor = req.auth!;
-    const scope: DashboardScope = {};
+    // Statistika doirasi ko'rish doirasi bilan bir xil:
+    // Direktor / Filial menejeri — o'z filiali, Hududiy rahbar — biriktirilgan
+    // filiallari, Texnik — o'z ishlari, Bosh texnik / Rahbar / Superadmin —
+    // kompaniya bo'yicha to'liq.
+    const scope = await resolveScope(req.auth!);
+    const dashboardScope: DashboardScope = {};
 
-    // Rol asosida statistika doirasini cheklash:
-    // Direktor — faqat o'z filiali, Texnik — faqat o'ziga biriktirilgan ishlar.
-    // Bosh texnik va Superadmin — kompaniya bo'yicha to'liq statistika.
-    if (actor.role === Role.DIRECTOR) {
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
-      scope.branchId = user.branchId ?? "__none__";
-    } else if (actor.role === Role.TECHNICIAN) {
-      scope.technicianId = actor.userId;
+    if (scope.kind === "technician") {
+      dashboardScope.technicianId = scope.technicianId;
+    } else if (scope.kind === "branches") {
+      dashboardScope.branchIds = scope.branchIds;
     }
 
-    res.json(await dashboardService.getStats(scope));
+    res.json(await dashboardService.getStats(dashboardScope));
   })
 );
