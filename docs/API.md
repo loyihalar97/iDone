@@ -165,6 +165,30 @@ bildirishnomalar `SET NULL` orqali tozalanadi; rasm fayllari o'chiriladi.
 
 - `GET /dashboard/stats` — barcha rollar (doirasi rolga qarab cheklanadi: Direktor/Filial menejeri — o'z filiali, Hududiy rahbar — biriktirilgan filiallari, Texnik — o'z ishlari, Bosh texnik/Rahbar/Superadmin — hammasi)
 
+## Reports (avtomatik hisobotlar)
+
+Tizim **haftalik** (har dushanba `REPORT_WEEKLY_HOUR`, standart **07:00**) va
+**oylik** (oyning oxirgi kuni `REPORT_MONTHLY_HOUR`, standart **16:00**) hisobotlarni
+PDF fayl sifatida **Superadmin**, **Filial direktori** va **Hududiy rahbar**ning
+Telegram bot chatiga avtomatik yuboradi. Vaqt mahalliy (UTC+5) hisoblanadi.
+
+Har bir qabul qiluvchi o'zining ko'rish doirasidagi ma'lumotni oladi
+(Superadmin — barcha filiallar, Hududiy rahbar — biriktirilgan filiallari,
+Direktor — o'z filiali). Davrda zayavka bo'lmasa PDF o'rniga qisqa matnli
+xabar yuboriladi.
+
+Takroriy yuborilmasligi `audit_logs` orqali kafolatlanadi: har bir
+(foydalanuvchi + davr) juftligi uchun bitta yozuv (`entityType: "report"`,
+`entityId: "weekly-2026-08-10"`).
+
+- `GET /reports/period?type=weekly|monthly` — Superadmin — joriy davr ma'lumoti
+  (`key`, `label`, `start`, `end`, `triggerAt`). Sozlamani tekshirish uchun.
+- `POST /reports/run?type=weekly|monthly&force=true` — Superadmin — hisobotni
+  QO'LDA barcha qabul qiluvchilarga yuboradi.
+  **Response:** `{ period, sent, empty, skipped, failed }`
+- `POST /reports/run/me?type=weekly|monthly` — Superadmin, Direktor, Hududiy rahbar —
+  hisobotni faqat **o'ziga** yuboradi (sinov uchun eng xavfsiz yo'l).
+
 ## Audit log
 
 - `GET /audit-logs?skip=&take=` — Superadmin

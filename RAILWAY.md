@@ -74,25 +74,55 @@ Bu sizning $5–10 byudjetingizga to'g'ri keladi. (Narxlar o'zgarishi mumkin —
    PUBLIC_BASE_URL        = https://<app-domeningiz>.up.railway.app
    USE_WEBHOOK            = true
    NODE_ENV               = production
+
+   # ixtiyoriy — rasmlarni saqlash muddati (standart: 7 kun)
+   MEDIA_RETENTION_DAYS   = 7
+
+   # ixtiyoriy — avtomatik hisobotlar (standart qiymatlar bilan ishlaydi)
+   REPORT_WEEKLY_HOUR     = 7    # dushanba 07:00 (Toshkent vaqti)
+   REPORT_MONTHLY_HOUR    = 16   # oy oxirgi kuni 16:00
    ```
+
+   > Hisobot vaqtlari **mahalliy vaqt** (UTC+5) bo'yicha hisoblanadi —
+   > Railway konteyneri UTC'da ishlasa ham to'g'ri ishlaydi.
 
    > `PUBLIC_BASE_URL` — app servisining Settings → Networking → Public Domain
    > dan olingan manzil. `DATABASE_URL` uchun Railway "reference variable"
    > ishlating: `${{Postgres.DATABASE_URL}}`.
 
-4. **Deploy.** Konteyner ishga tushganda avtomatik ravishda:
+4. **Rasmlar uchun Volume ulang (MUHIM).** Railway konteyneri efemer —
+   har bir deploy yoki restartda fayl tizimi noldan yaratiladi. Volume
+   ulanmasa, yuklangan rasmlar keyingi deployda **yo'qoladi**.
+
+   App servisi → `Settings` → `Volumes` → `+ New Volume`:
+
+   | Maydon | Qiymat |
+   |---|---|
+   | Mount path | `/app/uploads` |
+   | Size | 1–5 GB (Hobby'da maksimum 5 GB) |
+
+   > Mount path aynan `/app/uploads` bo'lishi shart: konteynerda `WORKDIR /app`,
+   > kod esa `LOCAL_UPLOAD_DIR` (standart `uploads`) ni shunga nisbatan hisoblaydi.
+   >
+   > Volume **ishlatilgan hajm** bo'yicha $0.15/GB/oy hisoblanadi (provizion
+   > qilingan hajm uchun emas) — bu loyihada amalda oyiga bir necha tsent.
+   >
+   > Eslatma: volume ulangan servisda Railway zero-downtime deploy qila olmaydi —
+   > har deployda bir necha soniya uzilish bo'ladi. Bu ilova uchun muammo emas.
+
+5. **Deploy.** Konteyner ishga tushganda avtomatik ravishda:
    - eski `category` ustunini xavfsiz ko'chiradi (premigrate),
    - `prisma db push` bilan sxemani bazaga qo'llaydi,
    - standart kategoriyalarni yaratadi,
    - botni webhook'ga ulaydi va serverni ishga tushiradi.
 
-5. **Superadmin'ni belgilang.** Birinchi marta botga `/start` bosgan
+6. **Superadmin'ni belgilang.** Birinchi marta botga `/start` bosgan
    foydalanuvchi bazaga qo'shiladi. So'ng bazada o'sha foydalanuvchining
    `role` ustunini `superadmin` ga o'zgartiring (yoki `apps/backend/prisma/seed.ts`
    dagi `telegramId` ni o'zingiznikiga qo'yib `npm run prisma:seed` ni ishga
    tushiring).
 
-6. **BotFather Menu Button.** Bot avtomatik ravishda menyu tugmasini
+7. **BotFather Menu Button.** Bot avtomatik ravishda menyu tugmasini
    `PUBLIC_BASE_URL` ga o'rnatadi — qo'lda sozlash shart emas.
 
 ---
@@ -105,6 +135,10 @@ Bu sizning $5–10 byudjetingizga to'g'ri keladi. (Narxlar o'zgarishi mumkin —
   ichki tool uchun juda foydali. (Telegram webhook uxlab qolgan xabarni qayta
   yuboradi, shuning uchun xabarlar yo'qolmaydi.) **Postgres uxlamaydi.**
 
+  > Avtomatik hisobotlar bunga moslashtirilgan: servis aynan dushanba 07:00 da
+  > uxlab yotgan bo'lsa ham, uyg'onishi bilan yuborilmagan hisobotni yuboradi
+  > (`REPORT_MAX_CATCHUP_HOURS`, standart 72 soat ichida).
+
 - **Webhook rejimi (long-polling emas).** Allaqachon `USE_WEBHOOK=true` bilan
   yoqilgan. Long-polling doimiy so'rov tsiklini ushlab turadi va ko'proq
   resurs yeydi — webhook esa faqat xabar kelganda ishlaydi.
@@ -114,10 +148,21 @@ Bu sizning $5–10 byudjetingizga to'g'ri keladi. (Narxlar o'zgarishi mumkin —
 - **Region.** Foydalanuvchilaringizga yaqin bitta region tanlang (ortiqcha
   replica/region qo'shmang).
 
-- **Postgres hajmi.** Yopilgan zayavkalar rasmlari avtomatik o'chiriladi
-  (kod ichida), shuning uchun disk kam o'sadi. Media'ni tashqi xotirada
-  (masalan Supabase/Cloudinary — `STORAGE_DRIVER`) saqlasangiz, konteyner
-  disk xarajati ham kamayadi.
+- **Disk hajmi (volume).** Zayavka yopilgandan so'ng rasmlar `MEDIA_RETENTION_DAYS`
+  kun (standart — **7 kun**) ilovada ko'rinib turadi, so'ng fon vazifasi ularni
+  diskdan va bazadan avtomatik tozalaydi. Rasmlar Telegram bot chatida esa
+  doimo saqlanib qoladi. Shu sababli volume hajmi faqat "ochiq + oxirgi bir
+  haftada yopilgan" zayavkalar hajmida turadi va o'smaydi.
+
+  Sozlash uchun o'zgaruvchilar:
+
+  | O'zgaruvchi | Standart | Ma'nosi |
+  |---|---|---|
+  | `MEDIA_RETENTION_DAYS` | `7` | Yopilgandan keyin necha kun saqlanadi. `0` — darhol o'chirilsin, `-1` — hech qachon o'chirilmasin |
+  | `MEDIA_CLEANUP_INTERVAL_MINUTES` | `360` | Tozalash vazifasi necha daqiqada bir ishlaydi |
+
+  Vazifa bir vaqtning o'zida "yetim" fayllarni ham (rasm yuklanib, zayavka
+  yuborilmagan holatlar) 24 soatdan keyin o'chiradi.
 
 - **Byudjet limiti.** Railway'da Usage → Limits orqali oylik "hard limit"
   (masalan $10) qo'ying — kutilmagan xarajatning oldini oladi.

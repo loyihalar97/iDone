@@ -1,5 +1,81 @@
 # Yangilanishlar
 
+## 2026-08-17 — Avtomatik haftalik va oylik PDF hisobotlar
+
+Tizim endi hisobotlarni **o'zi yuboradi** — hech kim tugma bosishi shart emas.
+
+| Hisobot | Qachon | Qamrovi |
+|---|---|---|
+| **Haftalik** | Har dushanba **07:00** | O'tgan hafta: dushanba 00:00 – yakshanba 23:59 |
+| **Oylik** | Oyning **oxirgi kuni 16:00** | Oyning 1-sanasidan 16:00 gacha |
+
+Vaqtlar **Toshkent vaqti** (UTC+5) bo'yicha — server UTC'da ishlasa ham to'g'ri.
+
+**Kim oladi:** Superadmin, Filial direktori, Hududiy rahbar. Har biri o'zining
+ko'rish doirasidagi ma'lumotni oladi:
+
+- Superadmin — barcha filiallar
+- Hududiy rahbar — o'ziga biriktirilgan filiallar
+- Filial direktori — o'z filiali
+
+**Nima keladi:** PDF fayl (qo'lda eksport bilan bir xil ustunlar) + qisqa
+xulosa yozuvi: jami zayavkalar soni, yopilganlari, ochiqlari va umumiy harajat.
+Davrda birorta zayavka bo'lmasa — PDF o'rniga qisqa matnli xabar keladi.
+
+**Ishonchlilik:**
+
+- **Takrorlanmaydi.** Har bir (foydalanuvchi + davr) juftligi `audit_logs` ga
+  yoziladi; qayta deploy yoki restart bo'lsa ham bir xil hisobot ikki marta
+  yuborilmaydi.
+- **O'tkazib yubormaydi.** Klassik cron o'rniga "yetib olish" usuli: server
+  aynan o'sha lahzada o'chiq yoki uxlab yotgan bo'lsa (Railway App Sleeping),
+  uyg'onishi bilan yuborilmagan hisobotni yuboradi (72 soat ichida).
+- **Bittasi yiqilsa — qolganlari boradi.** Foydalanuvchi botni bloklagan yoki
+  `/start` bosmagan bo'lsa, faqat o'shanga yuborilmaydi.
+
+**Qo'lda sinash uchun endpointlar:**
+
+- `POST /api/reports/run/me?type=weekly` — hisobotni faqat o'zingizga yuboradi
+- `POST /api/reports/run?type=weekly` — barcha qabul qiluvchilarga (Superadmin)
+- `GET /api/reports/period?type=monthly` — davr chegaralarini ko'rsatadi
+
+**Sozlamalar:** `REPORTS_ENABLED`, `REPORT_WEEKLY_HOUR`, `REPORT_MONTHLY_HOUR`,
+`REPORT_TZ_OFFSET_MINUTES`, `REPORT_CHECK_INTERVAL_MINUTES`,
+`REPORT_MAX_CATCHUP_HOURS` (barchasi ixtiyoriy — standart qiymatlar bilan ishlaydi).
+
+---
+
+## 2026-08-17 — Rasmlarni saqlash muddati (retention)
+
+**Muammo:** Railway konteyneri efemer — har deployda fayl tizimi tozalanadi va
+yuklangan rasmlar yo'qolardi. Bundan tashqari zayavka yopilgan zahoti rasmlar
+darhol o'chirib tashlanardi, shuning uchun tarixda ular ko'rinmasdi.
+
+**Yechim:**
+
+- Railway'da `/app/uploads` ga **volume** ulanadi (qo'llanma: `RAILWAY.md`,
+  3-bo'lim, 4-qadam) — rasmlar deploydan keyin ham saqlanib qoladi.
+- Zayavka yopilganda rasmlar endi **darhol o'chirilmaydi**: ular
+  `MEDIA_RETENTION_DAYS` kun (standart — **7 kun**) ilovada ko'rinib turadi.
+- Muddat o'tgach fon vazifasi (`modules/media/media.cleanup.ts`) fayllarni
+  diskdan va URL'larni bazadan tozalaydi. Rasmlar Telegram bot chatida esa
+  doimo qoladi.
+- O'sha vazifa **"yetim" fayllarni** ham tozalaydi: foydalanuvchi rasm yuklab,
+  zayavkani yubormasdan chiqib ketgan holatlar (24 soatdan keyin o'chiriladi).
+
+**Yangi sozlamalar:**
+
+| O'zgaruvchi | Standart | Ma'nosi |
+|---|---|---|
+| `MEDIA_RETENTION_DAYS` | `7` | Yopilgandan keyin necha kun saqlanadi. `0` — darhol o'chirilsin (eski xatti-harakat), `-1` — hech qachon o'chirilmasin |
+| `MEDIA_CLEANUP_INTERVAL_MINUTES` | `360` | Tozalash vazifasi necha daqiqada bir ishlaydi |
+
+> Eslatma: allaqachon yo'qolgan eski rasmlarni tiklab bo'lmaydi — ular
+> konteyner diski bilan birga o'chib ketgan. Volume ulangandan keyin
+> yuklanadigan rasmlar saqlanib qoladi.
+
+---
+
 ## 2026-08-17 — Yangi lavozimlar, ko'p bosh texnik, izohlar
 
 ### 1. Uch yangi lavozim
