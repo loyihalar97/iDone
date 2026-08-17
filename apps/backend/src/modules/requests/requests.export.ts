@@ -122,7 +122,7 @@ function resolveFont(name: string): string | null {
   return fs.existsSync(p) ? p : null;
 }
 
-export function buildPdf(rows: ExportRow[], title: string): Promise<Buffer> {
+export function buildPdf(rows: ExportRow[], title: string, subtitle?: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 24 });
     const chunks: Buffer[] = [];
@@ -156,6 +156,9 @@ export function buildPdf(rows: ExportRow[], title: string): Promise<Buffer> {
     ];
 
     doc.font(boldFont).fontSize(14).text(title, { align: "left" });
+    if (subtitle) {
+      doc.font(boldFont).fontSize(9.5).fillColor("#333333").text(subtitle);
+    }
     doc
       .font(bodyFont)
       .fontSize(8.5)

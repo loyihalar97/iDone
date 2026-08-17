@@ -10,6 +10,7 @@ import {
 } from "@app/shared-types";
 import { RequestStatus as PrismaRequestStatus } from "@prisma/client";
 import { AppError } from "../../core/errors/AppError";
+import { config } from "../../core/config";
 import { prisma } from "../../core/database/prisma";
 import { requestsRepository, RequestFilters } from "./requests.repository";
 import { assertValidTransition, shouldAutoClose } from "./requests.state-machine";
@@ -33,7 +34,39 @@ function escapeHtml(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-type RequestWithRelations = NonNullable<Awaited<ReturnType<typeof requestsRepository.findById>>>;
+export type RequestWithRelations = NonNullable<
+  Awaited<ReturnType<typeof requestsRepository.findById>>
+>;
+
+/**
+ * Zayavkalarni eksport (PDF/XLSX) qatorlariga aylantiradi. Qo'l bilan
+ * eksport qilishda ham, avtomatik haftalik/oylik hisobotlarda ham
+ * ishlatiladi — ustunlar bir xil bo'lishi uchun.
+ */
+export async function buildExportRows(items: RequestWithRelations[]): Promise<ExportRow[]> {
+  const labels = new Map<string, string>();
+  for (const item of items) {
+    if (!labels.has(item.category)) {
+      labels.set(item.category, await categoriesService.getLabel(item.category));
+    }
+  }
+
+  return items.map((r) => ({
+    createdAt: r.createdAt,
+    closedAt: r.closedAt,
+    branchName: r.branch.name,
+    categoryLabel: labels.get(r.category) ?? r.category,
+    description: r.description,
+    priority: r.priority,
+    status: r.status,
+    createdByName: r.createdBy.fullName,
+    createdByRoleLabel: ROLE_LABELS_UZ[r.createdBy.role as Role] ?? r.createdBy.role,
+    chiefTechnicianName: r.chiefTechnician?.fullName ?? null,
+    technicianName: r.technician?.fullName ?? null,
+    expenseAmount: r.expenseAmount,
+    comment: r.comments?.[0]?.text ?? null,
+  }));
+}
 
 /**
  * Zayavka haqida Telegram'ga (HTML formatida) yuboriladigan chiroyli
@@ -571,9 +604,14 @@ export const requestsService = {
         });
       }
 
-      // Rasmlar Telegram chatlarida saqlanib qoladi (yuqorida yuborildi),
-      // shuning uchun bazadan va diskdan xavfsiz o'chirib tashlaymiz.
-      await this.purgeMedia(request);
+      // Rasmlar zayavka yopilgandan keyin ham `MEDIA_RETENTION_DAYS` kun
+      // (standart — 7 kun) ilovada ko'rinib turadi, so'ng fon vazifasi
+      // (media.cleanup.ts) ularni diskdan va bazadan tozalaydi. Rasmlar
+      // Telegram bot chatida esa doimo saqlanib qolaveradi.
+      // MEDIA_RETENTION_DAYS=0 bo'lsa — eski xatti-harakat: darhol o'chiriladi.
+      if (config.mediaRetentionDays === 0) {
+        await this.purgeMedia(request);
+      }
     }
   },
 
@@ -592,28 +630,7 @@ export const requestsService = {
       throw AppError.validation("Eksport uchun zayavkalar topilmadi");
     }
 
-    const labels = new Map<string, string>();
-    for (const item of items) {
-      if (!labels.has(item.category)) {
-        labels.set(item.category, await categoriesService.getLabel(item.category));
-      }
-    }
-
-    const rows: ExportRow[] = items.map((r: RequestWithRelations) => ({
-      createdAt: r.createdAt,
-      closedAt: r.closedAt,
-      branchName: r.branch.name,
-      categoryLabel: labels.get(r.category) ?? r.category,
-      description: r.description,
-      priority: r.priority,
-      status: r.status,
-      createdByName: r.createdBy.fullName,
-      createdByRoleLabel: ROLE_LABELS_UZ[r.createdBy.role as Role] ?? r.createdBy.role,
-      chiefTechnicianName: r.chiefTechnician?.fullName ?? null,
-      technicianName: r.technician?.fullName ?? null,
-      expenseAmount: r.expenseAmount,
-      comment: r.comments?.[0]?.text ?? null,
-    }));
+    const rows: ExportRow[] = await buildExportRows(items);
 
     const stamp = new Date().toISOString().slice(0, 10);
     const title = "Zayavkalar tarixi";

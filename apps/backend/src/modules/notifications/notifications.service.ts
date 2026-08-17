@@ -103,7 +103,14 @@ export const notificationsService = {
    * Foydalanuvchining bot chatiga hujjat (PDF/XLSX) yuboradi.
    * History eksporti shu orqali yetkaziladi.
    */
-  async sendDocumentToUser(userId: string, file: Buffer, filename: string, mimeType: string, caption?: string) {
+  async sendDocumentToUser(
+    userId: string,
+    file: Buffer,
+    filename: string,
+    mimeType: string,
+    caption?: string,
+    opts: { html?: boolean } = {}
+  ) {
     if (!config.telegramBotToken) {
       throw new Error("TELEGRAM_BOT_TOKEN sozlanmagan — hujjat yuborib bo'lmadi");
     }
@@ -116,6 +123,7 @@ export const notificationsService = {
     form.append("chat_id", user.telegramId);
     form.append("document", new Blob([new Uint8Array(file)], { type: mimeType }), filename);
     if (caption) form.append("caption", caption);
+    if (caption && opts.html) form.append("parse_mode", "HTML");
 
     const response = await fetch(
       `${TELEGRAM_API_BASE}/bot${config.telegramBotToken}/sendDocument`,
@@ -124,6 +132,38 @@ export const notificationsService = {
     if (!response.ok) {
       const body = await response.text().catch(() => "");
       throw new Error(`Telegram sendDocument xatosi (${response.status}): ${body}`);
+    }
+  },
+
+  /**
+   * Foydalanuvchining bot chatiga oddiy matnli xabar yuboradi (bazada
+   * bildirishnoma yozuvi yaratmasdan). Avtomatik hisobotlarda "bu davrda
+   * zayavka bo'lmadi" xabari uchun ishlatiladi.
+   */
+  async sendTextToUser(userId: string, text: string, opts: { html?: boolean } = {}) {
+    if (!config.telegramBotToken) {
+      throw new Error("TELEGRAM_BOT_TOKEN sozlanmagan — xabar yuborib bo'lmadi");
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.telegramId) {
+      throw new Error("Foydalanuvchining Telegram ID'si topilmadi");
+    }
+
+    const response = await fetch(
+      `${TELEGRAM_API_BASE}/bot${config.telegramBotToken}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: user.telegramId,
+          text,
+          ...(opts.html ? { parse_mode: "HTML" } : {}),
+        }),
+      }
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Telegram sendMessage xatosi (${response.status}): ${body}`);
     }
   },
 

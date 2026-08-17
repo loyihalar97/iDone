@@ -17,6 +17,7 @@ import { notificationsRouter } from "./modules/notifications/notifications.route
 import { mediaRouter } from "./modules/media/media.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { auditLogRouter } from "./modules/audit-log/audit-log.routes";
+import { reportsRouter } from "./modules/reports/reports.routes";
 
 export function createApp() {
   const app = express();
@@ -51,6 +52,7 @@ export function createApp() {
   app.use("/api/media", mediaRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/audit-logs", auditLogRouter);
+  app.use("/api/reports", reportsRouter);
 
   return app;
 }

@@ -34,6 +34,33 @@ export const config = {
 
   storageDriver: (process.env.STORAGE_DRIVER ?? "local") as "local" | "supabase" | "cloudinary",
   localUploadDir: process.env.LOCAL_UPLOAD_DIR ?? "uploads",
+
+  // Zayavka YOPILGANIDAN keyin rasmlar qancha kun saqlanadi. Muddat o'tgach
+  // fayllar diskdan va URL'lar bazadan avtomatik o'chiriladi (rasmlar
+  // Telegram bot chatida qolaveradi).
+  //   0  — yopilgan zahoti darhol o'chiriladi (eski xatti-harakat)
+  //   -1 — hech qachon o'chirilmaydi
+  mediaRetentionDays: parseInt(process.env.MEDIA_RETENTION_DAYS ?? "7", 10),
+  // Tozalash vazifasi necha daqiqada bir ishga tushadi.
+  mediaCleanupIntervalMinutes: parseInt(
+    process.env.MEDIA_CLEANUP_INTERVAL_MINUTES ?? "360",
+    10
+  ),
+
+  // --- Avtomatik hisobotlar ------------------------------------------------
+  reportsEnabled: (process.env.REPORTS_ENABLED ?? "true") !== "false",
+  // Mahalliy vaqt siljishi (daqiqada). O'zbekiston — UTC+5, yozgi vaqt yo'q.
+  reportTzOffsetMinutes: parseInt(process.env.REPORT_TZ_OFFSET_MINUTES ?? "300", 10),
+  // Haftalik hisobot: dushanba kuni shu soatda (mahalliy vaqt).
+  reportWeeklyHour: parseInt(process.env.REPORT_WEEKLY_HOUR ?? "7", 10),
+  // Oylik hisobot: oyning oxirgi kuni shu soatda (mahalliy vaqt).
+  reportMonthlyHour: parseInt(process.env.REPORT_MONTHLY_HOUR ?? "16", 10),
+  // Rejalashtiruvchi necha daqiqada bir tekshiradi.
+  reportCheckIntervalMinutes: parseInt(process.env.REPORT_CHECK_INTERVAL_MINUTES ?? "10", 10),
+  // Server o'chib qolgan bo'lsa, kechikkan hisobot shu muddat ichida bo'lsa
+  // yuboriladi; undan eski bo'lsa o'tkazib yuboriladi (eski hisobotlar
+  // to'planib kelib qolmasligi uchun).
+  reportMaxCatchupHours: parseInt(process.env.REPORT_MAX_CATCHUP_HOURS ?? "72", 10),
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? "http://localhost:4000",
 
   supabaseUrl: process.env.SUPABASE_URL ?? "",
