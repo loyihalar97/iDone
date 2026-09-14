@@ -1,5 +1,6 @@
 import { RequestStatus, Role } from "@app/shared-types";
 import { AppError } from "../../core/errors/AppError";
+import { tx } from "../../core/i18n";
 
 type Transition = {
   from: RequestStatus;
@@ -46,17 +47,17 @@ const TRANSITIONS: Transition[] = [
 export function assertValidTransition(current: RequestStatus, next: RequestStatus, role: Role) {
   if (next === RequestStatus.CLOSED) {
     throw AppError.forbidden(
-      "Zayavkani qo'lda yopib bo'lmaydi. U Bosh texnik va Direktor tasdiqlaganidan so'ng avtomatik yopiladi."
+      tx("Zayavkani qo'lda yopib bo'lmaydi. U Bosh texnik va Direktor tasdiqlaganidan so'ng avtomatik yopiladi.", "Заявку нельзя закрыть вручную. Она закроется автоматически после подтверждения главным техником и директором.")
     );
   }
 
   const transition = TRANSITIONS.find((t) => t.from === current && t.to === next);
   if (!transition) {
-    throw AppError.conflict(`"${current}" holatidan "${next}" holatiga o'tish mumkin emas`);
+    throw AppError.conflict(tx(`"${current}" holatidan "${next}" holatiga o'tish mumkin emas`, `Переход из статуса "${current}" в статус "${next}" невозможен`));
   }
   if (role === Role.SUPERADMIN) return; // superadmin har doim boshqara oladi
   if (!transition.allowedRoles.includes(role)) {
-    throw AppError.forbidden("Bu status o'zgarishi uchun ruxsatingiz yo'q");
+    throw AppError.forbidden(tx("Bu status o'zgarishi uchun ruxsatingiz yo'q", "У вас нет прав на это изменение статуса"));
   }
 }
 

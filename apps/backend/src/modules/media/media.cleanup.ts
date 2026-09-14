@@ -4,7 +4,7 @@ import { RequestStatus } from "@app/shared-types";
 import { prisma } from "../../core/database/prisma";
 import { config } from "../../core/config";
 import { logger } from "../../core/logger";
-import { mediaService } from "./media.service";
+import { mediaService, isThumbFilename, toThumbPath } from "./media.service";
 
 /**
  * Media saqlash muddati (retention) vazifasi.
@@ -63,16 +63,27 @@ export async function purgeExpiredRequestMedia(): Promise<number> {
  * yubormasdan chiqib ketgan holatlar. Faqat 24 soatdan eski va bazada
  * hech qanday zayavkaga bog'lanmagan fayllar o'chiriladi.
  */
+/** Bir martalik ishga tushirishda ko'pi bilan shuncha fayl tekshiriladi
+ * (papkada juda ko'p fayl to'planib qolgan holatda ham CPU/xotira
+ * portlashining oldini olish uchun). */
+const ORPHAN_SCAN_BATCH_SIZE = 2000;
+
 export async function purgeOrphanFiles(): Promise<number> {
   if (config.storageDriver !== "local") return 0;
 
   const dir = path.resolve(process.cwd(), config.localUploadDir);
   if (!fs.existsSync(dir)) return 0;
 
-  const files = await fs.promises.readdir(dir);
-  if (files.length === 0) return 0;
+  const allFiles = await fs.promises.readdir(dir);
+  if (allFiles.length === 0) return 0;
 
-  // Bazada ishlatilayotgan barcha fayl nomlari.
+  // Bir martada juda ko'p fayl bilan ishlamaslik uchun kesib olamiz —
+  // qolganlari keyingi ishga tushishda tekshiriladi.
+  const files = allFiles.slice(0, ORPHAN_SCAN_BATCH_SIZE);
+
+  // Bazada ishlatilayotgan fayl nomlari — faqat shu papkadagi fayllar
+  // ro'yxati bo'yicha (butun jadvalni emas, faqat kerakli ustunlarni,
+  // select bilan cheklab olamiz — xotira sarfini kamaytiradi).
   const used = await prisma.request.findMany({
     where: { OR: [{ beforePhotoUrl: { not: null } }, { afterPhotoUrl: { not: null } }] },
     select: { beforePhotoUrl: true, afterPhotoUrl: true },
@@ -83,7 +94,13 @@ export async function purgeOrphanFiles(): Promise<number> {
     for (const url of [r.beforePhotoUrl, r.afterPhotoUrl]) {
       if (!url) continue;
       const idx = url.indexOf("/uploads/");
-      if (idx !== -1) usedNames.add(url.slice(idx + "/uploads/".length));
+      if (idx === -1) continue;
+      const name = url.slice(idx + "/uploads/".length);
+      usedNames.add(name);
+      // Kichik nusxa (thumbnail) bazada alohida saqlanmaydi — u asosiy
+      // rasm nomidan kelib chiqadi. Uni "yetim" deb hisoblamaslik uchun
+      // ishlatilayotgan fayllar ro'yxatiga qo'shamiz.
+      usedNames.add(toThumbPath(name));
     }
   }
 
@@ -92,6 +109,8 @@ export async function purgeOrphanFiles(): Promise<number> {
 
   for (const name of files) {
     if (usedNames.has(name)) continue;
+    // Asosiy rasmi hali ishlatilayotgan thumbnail'ga tegmaymiz.
+    if (isThumbFilename(name) && usedNames.has(name.replace(/_thumb\.jpg$/i, ""))) continue;
     const filePath = path.join(dir, name);
     try {
       const stat = await fs.promises.stat(filePath);
@@ -142,8 +161,11 @@ export function startMediaCleanupJob(): NodeJS.Timeout | null {
 
   const timer = setInterval(() => void runMediaCleanup(), intervalMs);
   logger.info(
-    `Media tozalash yoqildi: yopilgandan ${config.mediaRetentionDays} kun keyin, ` +
-      `har ${config.mediaCleanupIntervalMinutes} daqiqada tekshiriladi`
+    config.mediaRetentionDays === 0
+      ? `Media tozalash yoqildi: rasmlar zayavka yopilgan zahoti o'chiriladi; ` +
+        `fon tekshiruvi (yetim fayllar uchun) har ${config.mediaCleanupIntervalMinutes} daqiqada`
+      : `Media tozalash yoqildi: yopilgandan ${config.mediaRetentionDays} kun keyin, ` +
+        `har ${config.mediaCleanupIntervalMinutes} daqiqada tekshiriladi`
   );
   return timer;
 }

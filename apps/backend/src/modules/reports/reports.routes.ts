@@ -7,6 +7,7 @@ import { AppError } from "../../core/errors/AppError";
 import { prisma } from "../../core/database/prisma";
 import { resolvePeriod } from "./reports.period";
 import { sendReportToUser, sendReportsForPeriod } from "./reports.service";
+import { getRequestLanguage, tx } from "../../core/i18n";
 
 export const reportsRouter = Router();
 
@@ -40,7 +41,8 @@ reportsRouter.get(
     res.json({
       type: period.type,
       key: period.key,
-      label: period.label,
+      // Davr matni so'rovchining tilida (oy nomi tarjima qilinadi).
+      label: period.labelIn(getRequestLanguage(req)),
       start: period.start,
       end: period.end,
       triggerAt: period.triggerAt,
@@ -75,9 +77,9 @@ reportsRouter.post(
 
     const user = await prisma.user.findUnique({
       where: { id: req.auth!.userId },
-      select: { id: true, fullName: true, role: true },
+      select: { id: true, fullName: true, role: true, language: true },
     });
-    if (!user) throw AppError.notFound("Foydalanuvchi topilmadi");
+    if (!user) throw AppError.notFound(tx("Foydalanuvchi topilmadi", "Пользователь не найден"));
 
     const outcome = await sendReportToUser(user as any, period, { force: true });
     res.json({ period: period.key, label: period.label, outcome });

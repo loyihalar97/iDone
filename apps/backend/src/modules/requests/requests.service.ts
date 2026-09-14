@@ -1,26 +1,30 @@
 import {
+  Language,
   NotificationType,
   Priority,
-  PRIORITY_LABELS_UZ,
+  priorityLabel,
   REQUEST_CREATOR_ROLES,
   RequestStatus,
   Role,
-  ROLE_LABELS_UZ,
-  STATUS_LABELS_UZ,
+  roleLabel,
+  statusLabel,
 } from "@app/shared-types";
 import { RequestStatus as PrismaRequestStatus } from "@prisma/client";
 import { AppError } from "../../core/errors/AppError";
 import { config } from "../../core/config";
+import { logger } from "../../core/logger";
 import { prisma } from "../../core/database/prisma";
 import { requestsRepository, RequestFilters } from "./requests.repository";
 import { assertValidTransition, shouldAutoClose } from "./requests.state-machine";
 import { buildPdf, buildXlsx, ExportRow } from "./requests.export";
 import { auditLogService } from "../audit-log/audit-log.service";
-import { categoriesService } from "../categories/categories.service";
-import { notificationsService } from "../notifications/notifications.service";
+import { categoriesService, pickCategoryLabel } from "../categories/categories.service";
+import { notificationsService, getUserLanguage } from "../notifications/notifications.service";
 import { mediaService } from "../media/media.service";
 import { resolveCreateBranchId, resolveScope, scopeAllowsBranch } from "../../core/access/scope";
 import type { AuthTokenPayload } from "../auth/auth.service";
+import { DEFAULT_LANGUAGE, formatNumber, tx } from "../../core/i18n";
+import { t } from "../../core/i18n/messages";
 
 interface CreateRequestInput {
   branchId?: string;
@@ -39,28 +43,46 @@ export type RequestWithRelations = NonNullable<
 >;
 
 /**
+ * Kategoriya nomini istalgan tilda qaytaradigan funksiya tayyorlaydi.
+ *
+ * Bildirishnoma matni har bir qabul qiluvchining tilida quriladi, lekin
+ * matn quruvchi funksiya sinxron bo'lishi kerak — shuning uchun kategoriya
+ * nomlarini oldindan (bir marta) bazadan olamiz.
+ */
+async function categoryLabeller(): Promise<(key: string, lang: Language) => string> {
+  const rows = await categoriesService.getRows();
+  const byKey = new Map(rows.map((r) => [r.key, r]));
+  return (key, lang) => {
+    const row = byKey.get(key);
+    return row ? pickCategoryLabel(row, lang) : key;
+  };
+}
+
+/**
  * Zayavkalarni eksport (PDF/XLSX) qatorlariga aylantiradi. Qo'l bilan
  * eksport qilishda ham, avtomatik haftalik/oylik hisobotlarda ham
  * ishlatiladi — ustunlar bir xil bo'lishi uchun.
+ *
+ * `lang` — hisobotni oladigan foydalanuvchining tili: kategoriya nomlari
+ * shu tilda olinadi, holat/muhimlik/lavozim nomlarini esa eksport moduli
+ * o'zi tarjima qiladi.
  */
-export async function buildExportRows(items: RequestWithRelations[]): Promise<ExportRow[]> {
-  const labels = new Map<string, string>();
-  for (const item of items) {
-    if (!labels.has(item.category)) {
-      labels.set(item.category, await categoriesService.getLabel(item.category));
-    }
-  }
+export async function buildExportRows(
+  items: RequestWithRelations[],
+  lang: Language = DEFAULT_LANGUAGE
+): Promise<ExportRow[]> {
+  const labelFor = await categoryLabeller();
 
   return items.map((r) => ({
     createdAt: r.createdAt,
     closedAt: r.closedAt,
     branchName: r.branch.name,
-    categoryLabel: labels.get(r.category) ?? r.category,
+    categoryLabel: labelFor(r.category, lang),
     description: r.description,
     priority: r.priority,
     status: r.status,
     createdByName: r.createdBy.fullName,
-    createdByRoleLabel: ROLE_LABELS_UZ[r.createdBy.role as Role] ?? r.createdBy.role,
+    createdByRole: r.createdBy.role,
     chiefTechnicianName: r.chiefTechnician?.fullName ?? null,
     technicianName: r.technician?.fullName ?? null,
     expenseAmount: r.expenseAmount,
@@ -71,32 +93,39 @@ export async function buildExportRows(items: RequestWithRelations[]): Promise<Ex
 /**
  * Zayavka haqida Telegram'ga (HTML formatida) yuboriladigan chiroyli
  * "karta" matnini quradi — ochilganda va yopilganda ishlatiladi.
+ * Matn qabul qiluvchining tilida tuziladi.
  */
 function buildRequestCardHtml(
   request: RequestWithRelations,
-  title: string,
-  categoryLabel: string
+  kind: "created" | "closed",
+  lang: Language,
+  categoryLabelText: string
 ): string {
+  const c = t(lang).notify.card;
+  const title = kind === "created" ? c.newRequest : c.closedRequest;
+
   const lines = [
     `<b>${title}</b>`,
     ``,
-    `🏢 <b>Filial:</b> ${escapeHtml(request.branch.name)}`,
-    `📂 <b>Kategoriya:</b> ${escapeHtml(categoryLabel)}`,
-    `⚠️ <b>Muhimlik:</b> ${PRIORITY_LABELS_UZ[request.priority as Priority]}`,
-    `📝 <b>Tavsif:</b> ${escapeHtml(request.description)}`,
-    `👤 <b>Yaratdi:</b> ${escapeHtml(request.createdBy.fullName)}` +
-      ` (${ROLE_LABELS_UZ[request.createdBy.role as Role] ?? request.createdBy.role})`,
+    `🏢 <b>${c.branch}:</b> ${escapeHtml(request.branch.name)}`,
+    `📂 <b>${c.category}:</b> ${escapeHtml(categoryLabelText)}`,
+    `⚠️ <b>${c.priority}:</b> ${priorityLabel(request.priority as Priority, lang)}`,
+    `📝 <b>${c.description}:</b> ${escapeHtml(request.description)}`,
+    `👤 <b>${c.createdBy}:</b> ${escapeHtml(request.createdBy.fullName)}` +
+      ` (${roleLabel(request.createdBy.role as Role, lang)})`,
   ];
   if (request.chiefTechnician) {
-    lines.push(`🧑‍🔧 <b>Bosh texnik:</b> ${escapeHtml(request.chiefTechnician.fullName)}`);
+    lines.push(`🧑‍🔧 <b>${c.chiefTechnician}:</b> ${escapeHtml(request.chiefTechnician.fullName)}`);
   }
   if (request.technician) {
-    lines.push(`🔧 <b>Texnik:</b> ${escapeHtml(request.technician.fullName)}`);
+    lines.push(`🔧 <b>${c.technician}:</b> ${escapeHtml(request.technician.fullName)}`);
   }
   if (request.expenseAmount !== null && request.expenseAmount !== undefined) {
-    lines.push(`💵 <b>Harajat:</b> ${Number(request.expenseAmount).toLocaleString("uz-UZ")} so'm`);
+    lines.push(
+      `💵 <b>${c.expense}:</b> ${formatNumber(Number(request.expenseAmount), lang)} ${t(lang).currency}`
+    );
   }
-  lines.push(`📌 <b>Holat:</b> ${STATUS_LABELS_UZ[request.status as RequestStatus]}`);
+  lines.push(`📌 <b>${c.status}:</b> ${statusLabel(request.status as RequestStatus, lang)}`);
   return lines.join("\n");
 }
 
@@ -125,7 +154,7 @@ async function findBranchLeaderIds(branchId: string): Promise<string[]> {
 export const requestsService = {
   async create(input: CreateRequestInput, actor: AuthTokenPayload) {
     if (!REQUEST_CREATOR_ROLES.includes(actor.role)) {
-      throw AppError.forbidden("Sizning lavozimingiz zayavka ocha olmaydi");
+      throw AppError.forbidden(tx("Sizning lavozimingiz zayavka ocha olmaydi", "Ваша должность не позволяет создавать заявки"));
     }
 
     // Filial rolga qarab aniqlanadi (o'z filiali / biriktirilgan filiallar / istalgani).
@@ -155,9 +184,10 @@ export const requestsService = {
     });
 
     // Zayavka ochilganda yaratuvchiga va BARCHA faol bosh texniklarga
-    // formatlangan, rasmli xabar yuboriladi.
-    const categoryLabel = await categoriesService.getLabel(request.category);
-    const openCardText = buildRequestCardHtml(request, "🆕 Yangi zayavka ochildi", categoryLabel);
+    // formatlangan, rasmli xabar yuboriladi — har biriga O'Z TILIDA.
+    const labelFor = await categoryLabeller();
+    const openCardText = (lang: Language) =>
+      buildRequestCardHtml(request, "created", lang, labelFor(request.category, lang));
     const openPhotoUrls = request.beforePhotoUrl ? [request.beforePhotoUrl] : undefined;
 
     // Yaratuvchi + barcha faol bosh texniklar + filial rahbarlari
@@ -183,7 +213,7 @@ export const requestsService = {
 
   async getById(id: string, actor: AuthTokenPayload) {
     const request = await requestsRepository.findById(id);
-    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    if (!request) throw AppError.notFound(tx("Zayavka topilmadi", "Заявка не найдена"));
     await this.assertCanView(request, actor);
     return request;
   },
@@ -221,12 +251,12 @@ export const requestsService = {
 
   async assignTechnician(requestId: string, technicianId: string, actor: AuthTokenPayload) {
     if (actor.role !== Role.CHIEF_TECHNICIAN && actor.role !== Role.SUPERADMIN) {
-      throw AppError.forbidden("Faqat Bosh texnik texnik biriktira oladi");
+      throw AppError.forbidden(tx("Faqat Bosh texnik texnik biriktira oladi", "Назначить техника может только главный техник"));
     }
     const request = await requestsRepository.findById(requestId);
-    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    if (!request) throw AppError.notFound(tx("Zayavka topilmadi", "Заявка не найдена"));
     if (request.status === RequestStatus.CLOSED) {
-      throw AppError.conflict("Yopilgan zayavkaga texnik biriktirib bo'lmaydi");
+      throw AppError.conflict(tx("Yopilgan zayavkaga texnik biriktirib bo'lmaydi", "К закрытой заявке нельзя назначить техника"));
     }
 
     const technician = await prisma.user.findUnique({ where: { id: technicianId } });
@@ -236,10 +266,10 @@ export const requestsService = {
       !technician ||
       (technician.role !== Role.TECHNICIAN && technician.role !== Role.CHIEF_TECHNICIAN)
     ) {
-      throw AppError.validation("Ko'rsatilgan foydalanuvchi texnik emas");
+      throw AppError.validation(tx("Ko'rsatilgan foydalanuvchi texnik emas", "Указанный пользователь не является техником"));
     }
     if (!technician.isActive) {
-      throw AppError.validation("Bu xodim nofaol — unga ish biriktirib bo'lmaydi");
+      throw AppError.validation(tx("Bu xodim nofaol — unga ish biriktirib bo'lmaydi", "Этот сотрудник неактивен — назначить ему работу нельзя"));
     }
 
     const previousTechnicianId = request.technicianId;
@@ -263,7 +293,7 @@ export const requestsService = {
       metadata: { technicianId, previousTechnicianId },
     });
 
-    const assignCategoryLabel = await categoriesService.getLabel(updated.category);
+    const labelFor = await categoryLabeller();
 
     // Yangi texnikka xabar (o'ziga biriktirgan bo'lsa xabar yuborilmaydi).
     if (technicianId !== actor.userId) {
@@ -271,7 +301,8 @@ export const requestsService = {
         userId: technicianId,
         requestId,
         type: NotificationType.TECHNICIAN_ASSIGNED,
-        text: `🔧 Sizga yangi zayavka biriktirildi: ${updated.branch.name} filiali, "${assignCategoryLabel}".`,
+        text: (lang) =>
+          t(lang).notify.assigned(updated.branch.name, labelFor(updated.category, lang)),
       });
     }
 
@@ -281,7 +312,8 @@ export const requestsService = {
         userId: previousTechnicianId,
         requestId,
         type: NotificationType.TECHNICIAN_ASSIGNED,
-        text: `ℹ️ Zayavka boshqa texnikka o'tkazildi: ${updated.branch.name} filiali, "${assignCategoryLabel}".`,
+        text: (lang) =>
+          t(lang).notify.reassigned(updated.branch.name, labelFor(updated.category, lang)),
       });
     }
 
@@ -293,12 +325,12 @@ export const requestsService = {
    */
   async changePriority(requestId: string, priority: Priority, actor: AuthTokenPayload) {
     if (actor.role !== Role.CHIEF_TECHNICIAN && actor.role !== Role.SUPERADMIN) {
-      throw AppError.forbidden("Muhimlik darajasini faqat Bosh texnik o'zgartira oladi");
+      throw AppError.forbidden(tx("Muhimlik darajasini faqat Bosh texnik o'zgartira oladi", "Изменить уровень важности может только главный техник"));
     }
     const request = await requestsRepository.findById(requestId);
-    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    if (!request) throw AppError.notFound(tx("Zayavka topilmadi", "Заявка не найдена"));
     if (request.status === RequestStatus.CLOSED) {
-      throw AppError.conflict("Yopilgan zayavkaning muhimligini o'zgartirib bo'lmaydi");
+      throw AppError.conflict(tx("Yopilgan zayavkaning muhimligini o'zgartirib bo'lmaydi", "Нельзя изменить важность закрытой заявки"));
     }
     if (request.priority === priority) return request;
 
@@ -313,12 +345,16 @@ export const requestsService = {
       metadata: { from: previous, to: priority },
     });
 
-    const categoryLabel = await categoriesService.getLabel(updated.category);
-    const text =
-      `⚠️ <b>Muhimlik darajasi o'zgartirildi</b>\n\n` +
-      `🏢 <b>Filial:</b> ${escapeHtml(updated.branch.name)}\n` +
-      `📂 <b>Kategoriya:</b> ${escapeHtml(categoryLabel)}\n` +
-      `🔁 <b>O'zgarish:</b> ${PRIORITY_LABELS_UZ[previous]} → ${PRIORITY_LABELS_UZ[priority]}`;
+    const labelFor = await categoryLabeller();
+    const text = (lang: Language) => {
+      const m = t(lang).notify.priorityChanged;
+      return (
+        `⚠️ <b>${m.title}</b>\n\n` +
+        `🏢 <b>${m.branch}:</b> ${escapeHtml(updated.branch.name)}\n` +
+        `📂 <b>${m.category}:</b> ${escapeHtml(labelFor(updated.category, lang))}\n` +
+        `🔁 <b>${m.change}:</b> ${priorityLabel(previous, lang)} → ${priorityLabel(priority, lang)}`
+      );
+    };
 
     // Zayavka egasi, biriktirilgan texnik va filial rahbarlariga xabar.
     const recipients = new Set<string>([updated.createdById, ...(await findBranchLeaderIds(updated.branchId))]);
@@ -350,10 +386,10 @@ export const requestsService = {
     actor: AuthTokenPayload
   ) {
     if (actor.role !== Role.CHIEF_TECHNICIAN && actor.role !== Role.SUPERADMIN) {
-      throw AppError.forbidden("Izohni faqat Bosh texnik yoza oladi");
+      throw AppError.forbidden(tx("Izohni faqat Bosh texnik yoza oladi", "Оставить комментарий может только главный техник"));
     }
     const request = await requestsRepository.findById(requestId);
-    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    if (!request) throw AppError.notFound(tx("Zayavka topilmadi", "Заявка не найдена"));
 
     const isBlocker = input.isBlocker ?? true;
     const comment = await requestsRepository.addComment(
@@ -371,19 +407,21 @@ export const requestsService = {
       metadata: { commentId: comment.id },
     });
 
-    const categoryLabel = await categoriesService.getLabel(request.category);
+    const labelFor = await categoryLabeller();
     const author = await prisma.user.findUnique({ where: { id: actor.userId } });
-    const title = isBlocker
-      ? "🚫 Bu ishni bajarish imkonsiz"
-      : "💬 Zayavkaga izoh qoldirildi";
 
-    const text =
-      `<b>${title}</b>\n\n` +
-      `🏢 <b>Filial:</b> ${escapeHtml(request.branch.name)}\n` +
-      `📂 <b>Kategoriya:</b> ${escapeHtml(categoryLabel)}\n` +
-      `📝 <b>Zayavka:</b> ${escapeHtml(request.description)}\n` +
-      `🧑‍🔧 <b>Bosh texnik:</b> ${escapeHtml(author?.fullName ?? "—")}\n\n` +
-      `❗️ <b>Izoh:</b> ${escapeHtml(input.text)}`;
+    const text = (lang: Language) => {
+      const m = t(lang).notify.comment;
+      const title = isBlocker ? m.blockerTitle : m.plainTitle;
+      return (
+        `<b>${title}</b>\n\n` +
+        `🏢 <b>${m.branch}:</b> ${escapeHtml(request.branch.name)}\n` +
+        `📂 <b>${m.category}:</b> ${escapeHtml(labelFor(request.category, lang))}\n` +
+        `📝 <b>${m.request}:</b> ${escapeHtml(request.description)}\n` +
+        `🧑‍🔧 <b>${m.author}:</b> ${escapeHtml(author?.fullName ?? "—")}\n\n` +
+        `❗️ <b>${m.text}:</b> ${escapeHtml(input.text)}`
+      );
+    };
 
     // Filial direktori, filial menejeri va zayavka egasiga xabar boradi.
     const recipients = new Set<string>([
@@ -407,7 +445,7 @@ export const requestsService = {
 
   async listComments(requestId: string, actor: AuthTokenPayload) {
     const request = await requestsRepository.findById(requestId);
-    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    if (!request) throw AppError.notFound(tx("Zayavka topilmadi", "Заявка не найдена"));
     await this.assertCanView(request, actor);
     return requestsRepository.listComments(requestId);
   },
@@ -420,7 +458,7 @@ export const requestsService = {
     expenseAmount?: number
   ) {
     const request = await requestsRepository.findById(requestId);
-    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    if (!request) throw AppError.notFound(tx("Zayavka topilmadi", "Заявка не найдена"));
 
     await this.assertCanActOnRequest(request, actor);
 
@@ -428,11 +466,11 @@ export const requestsService = {
 
     // Texnik ishni yakunlashda natija rasmi majburiy.
     if (nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN && !afterPhotoUrl && !request.afterPhotoUrl) {
-      throw AppError.validation("Ish yakunlangandan keyingi natija rasmi majburiy");
+      throw AppError.validation(tx("Ish yakunlangandan keyingi natija rasmi majburiy", "Фото результата после завершения работы обязательно"));
     }
 
     if (expenseAmount !== undefined && expenseAmount < 0) {
-      throw AppError.validation("Harajat summasi manfiy bo'lishi mumkin emas");
+      throw AppError.validation(tx("Harajat summasi manfiy bo'lishi mumkin emas", "Сумма расходов не может быть отрицательной"));
     }
 
     // Harajat summasini endi TEXNIK ham kiritadi. Texnik summani kiritmasa —
@@ -505,7 +543,7 @@ export const requestsService = {
    */
   async reorder(orderedIds: string[], actor: AuthTokenPayload) {
     if (actor.role !== Role.CHIEF_TECHNICIAN && actor.role !== Role.SUPERADMIN) {
-      throw AppError.forbidden("Faqat Bosh texnik zayavkalarni tartiblashi mumkin");
+      throw AppError.forbidden(tx("Faqat Bosh texnik zayavkalarni tartiblashi mumkin", "Сортировать заявки может только главный техник"));
     }
     // updateMany — oradan biror zayavka o'chirilgan bo'lsa ham xato bermaydi
     // (update esa P2025 bilan yiqilardi).
@@ -524,7 +562,7 @@ export const requestsService = {
   ) {
     if (!request) return;
 
-    const categoryLabel = await categoriesService.getLabel(request.category);
+    const labelFor = await categoryLabeller();
 
     // Texnik "Ishni boshlash" bosganda mas'ul bosh texnikka xabar boradi.
     if (
@@ -532,12 +570,16 @@ export const requestsService = {
       request.chiefTechnicianId &&
       request.chiefTechnicianId !== actor?.userId
     ) {
-      const starterName = request.technician?.fullName ?? "Texnik";
       await notificationsService.notify({
         userId: request.chiefTechnicianId,
         requestId: request.id,
         type: NotificationType.TECHNICIAN_STARTED,
-        text: `▶️ ${starterName} ishni boshladi: ${request.branch.name}, "${categoryLabel}".`,
+        text: (lang) =>
+          t(lang).notify.started(
+            request.technician?.fullName ?? t(lang).notify.someTechnician,
+            request.branch.name,
+            labelFor(request.category, lang)
+          ),
       });
     }
 
@@ -546,18 +588,19 @@ export const requestsService = {
       request.chiefTechnicianId &&
       request.chiefTechnicianId !== actor?.userId
     ) {
-      const workerName = request.technician?.fullName ?? "Texnik";
-      const expenseLine =
-        request.expenseAmount !== null && request.expenseAmount !== undefined
-          ? ` Kiritilgan harajat: ${Number(request.expenseAmount).toLocaleString("uz-UZ")} so'm.`
-          : "";
       await notificationsService.notify({
         userId: request.chiefTechnicianId,
         requestId: request.id,
         type: NotificationType.TECHNICIAN_COMPLETED,
-        text:
-          `✅ ${workerName} ishni yakunladi: ${request.branch.name}, "${categoryLabel}".` +
-          `${expenseLine} Tekshirib, ishni yakunlashingiz kerak.`,
+        text: (lang) =>
+          t(lang).notify.completed(
+            request.technician?.fullName ?? t(lang).notify.someTechnician,
+            request.branch.name,
+            labelFor(request.category, lang),
+            request.expenseAmount !== null && request.expenseAmount !== undefined
+              ? formatNumber(Number(request.expenseAmount), lang)
+              : null
+          ),
       });
     }
 
@@ -566,12 +609,14 @@ export const requestsService = {
         userId: request.createdById,
         requestId: request.id,
         type: NotificationType.CHIEF_APPROVED,
-        text: `👍 Bosh texnik ishni tasdiqladi: ${request.branch.name}, "${categoryLabel}". Qabul qilishingiz kerak.`,
+        text: (lang) =>
+          t(lang).notify.chiefApproved(request.branch.name, labelFor(request.category, lang)),
       });
     }
 
     if (nextStatus === RequestStatus.ACCEPTED_BY_DIRECTOR) {
-      const closeCardText = buildRequestCardHtml(request, "🔒 Zayavka yopildi", categoryLabel);
+      const closeCardText = (lang: Language) =>
+        buildRequestCardHtml(request, "closed", lang, labelFor(request.category, lang));
       const closePhotoUrls = [request.beforePhotoUrl, request.afterPhotoUrl].filter(
         (u): u is string => !!u
       );
@@ -600,17 +645,33 @@ export const requestsService = {
           userId: request.technicianId,
           requestId: request.id,
           type: NotificationType.REQUEST_CLOSED,
-          text: `🔒 Zayavka yopildi: ${request.branch.name}, "${categoryLabel}".`,
+          text: (lang) =>
+            t(lang).notify.closedForTechnician(
+              request.branch.name,
+              labelFor(request.category, lang)
+            ),
         });
       }
 
-      // Rasmlar zayavka yopilgandan keyin ham `MEDIA_RETENTION_DAYS` kun
-      // (standart — 7 kun) ilovada ko'rinib turadi, so'ng fon vazifasi
-      // (media.cleanup.ts) ularni diskdan va bazadan tozalaydi. Rasmlar
-      // Telegram bot chatida esa doimo saqlanib qolaveradi.
-      // MEDIA_RETENTION_DAYS=0 bo'lsa — eski xatti-harakat: darhol o'chiriladi.
+      // Rasmlarni tozalash. STANDART holatda (MEDIA_RETENTION_DAYS=0) rasmlar
+      // zayavka YOPILGAN ZAHOTI diskdan ham, bazadan ham o'chiriladi — bu
+      // Railway disk hajmi va trafik xarajatini minimal ushlab turadi.
+      //
+      // Muhim: yuqoridagi "zayavka yopildi" kartasi `awaitDelivery: true`
+      // bilan yuborilgan — ya'ni Telegram rasmlarni O'Z SERVERIGA yuklab
+      // bo'lgan. Shu sababli fayllarni endi xavfsiz o'chirsa bo'ladi:
+      // bot chatidagi xabarlarda rasmlar doimo ko'rinib turaveradi.
+      //
+      // MEDIA_RETENTION_DAYS > 0 bo'lsa, rasmlar shuncha kun ilovada
+      // ko'rinadi va keyin fon vazifasi (media.cleanup.ts) tozalaydi.
       if (config.mediaRetentionDays === 0) {
-        await this.purgeMedia(request);
+        try {
+          await this.purgeMedia(request);
+        } catch (err) {
+          // Tozalash muvaffaqiyatsiz bo'lsa ham zayavka yopilgan holicha
+          // qoladi — fon vazifasi keyinroq baribir tozalaydi.
+          logger.warn({ err, requestId: request.id }, "Rasmlarni o'chirib bo'lmadi");
+        }
       }
     }
   },
@@ -625,18 +686,24 @@ export const requestsService = {
   async exportHistory(filters: RequestFilters, format: "pdf" | "xlsx", actor: AuthTokenPayload) {
     await this.applyScope(filters, actor);
 
-    const [items] = await requestsRepository.findMany(filters, 0, 2000);
+    // Eksportda izoh ustuni bor — izohlar matni bilan tortamiz.
+    const [items] = await requestsRepository.findMany(filters, 0, 2000, { fullComments: true });
     if (items.length === 0) {
-      throw AppError.validation("Eksport uchun zayavkalar topilmadi");
+      throw AppError.validation(tx("Eksport uchun zayavkalar topilmadi", "Заявки для экспорта не найдены"));
     }
 
-    const rows: ExportRow[] = await buildExportRows(items);
+    // Hisobot eksportni so'ragan foydalanuvchining tilida tayyorlanadi.
+    const lang = await getUserLanguage(actor.userId);
+    const messages = t(lang);
+    const rows: ExportRow[] = await buildExportRows(items, lang);
 
     const stamp = new Date().toISOString().slice(0, 10);
-    const title = "Zayavkalar tarixi";
+    const title = messages.export.historyTitle;
     const file =
-      format === "xlsx" ? await buildXlsx(rows, title) : await buildPdf(rows, title);
-    const filename = `zayavkalar-tarixi-${stamp}.${format}`;
+      format === "xlsx"
+        ? await buildXlsx(rows, lang)
+        : await buildPdf(rows, title, lang);
+    const filename = `${messages.export.fileBaseName}-${stamp}.${format}`;
     const mime =
       format === "xlsx"
         ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -647,7 +714,7 @@ export const requestsService = {
       file,
       filename,
       mime,
-      `📄 Zayavkalar tarixi (${items.length} ta) — ${format.toUpperCase()}`
+      messages.export.caption(items.length, format.toUpperCase())
     );
 
     await auditLogService.log({
@@ -679,10 +746,10 @@ export const requestsService = {
    */
   async remove(id: string, actor: AuthTokenPayload) {
     if (actor.role !== Role.SUPERADMIN) {
-      throw AppError.forbidden("Faqat superadmin zayavkani o'chira oladi");
+      throw AppError.forbidden(tx("Faqat superadmin zayavkani o'chira oladi", "Удалить заявку может только суперадмин"));
     }
     const request = await requestsRepository.findById(id);
-    if (!request) throw AppError.notFound("Zayavka topilmadi");
+    if (!request) throw AppError.notFound(tx("Zayavka topilmadi", "Заявка не найдена"));
 
     mediaService.deleteLocalFileByUrl(request.beforePhotoUrl);
     mediaService.deleteLocalFileByUrl(request.afterPhotoUrl);
@@ -707,20 +774,20 @@ export const requestsService = {
 
     if (scope.kind === "technician") {
       if (request.technicianId !== actor.userId) {
-        throw AppError.forbidden("Bu zayavka sizga biriktirilmagan");
+        throw AppError.forbidden(tx("Bu zayavka sizga biriktirilmagan", "Эта заявка вам не назначена"));
       }
       return;
     }
 
     if (!scopeAllowsBranch(scope, request.branchId)) {
-      throw AppError.forbidden("Bu zayavka sizning filial(lar)ingizga tegishli emas");
+      throw AppError.forbidden(tx("Bu zayavka sizning filial(lar)ingizga tegishli emas", "Эта заявка не относится к вашему филиалу"));
     }
   },
 
   async assertCanActOnRequest(request: RequestWithRelations, actor: AuthTokenPayload) {
     await this.assertCanView(request, actor);
     if (actor.role === Role.TECHNICIAN && request.technicianId !== actor.userId) {
-      throw AppError.forbidden("Bu zayavka sizga biriktirilmagan");
+      throw AppError.forbidden(tx("Bu zayavka sizga biriktirilmagan", "Эта заявка вам не назначена"));
     }
   },
 };

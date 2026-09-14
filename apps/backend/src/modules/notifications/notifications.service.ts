@@ -1,13 +1,21 @@
-import { NotificationType } from "@app/shared-types";
+import { Language, NotificationType } from "@app/shared-types";
 import { prisma } from "../../core/database/prisma";
 import { config } from "../../core/config";
 import { logger } from "../../core/logger";
+import { userLanguage } from "../../core/i18n";
+
+/**
+ * Bildirishnoma matnini QABUL QILUVCHINING tilida quruvchi funksiya.
+ * Bitta voqea (masalan zayavka yopilishi) har bir xodimga o'z tilida boradi.
+ */
+export type NotificationTextBuilder = (lang: Language) => string;
 
 interface NotifyInput {
   userId: string;
   requestId?: string;
   type: NotificationType;
-  text: string;
+  /** Tayyor matn yoki qabul qiluvchi tiliga qarab quriladigan matn. */
+  text: string | NotificationTextBuilder;
   /** Agar berilsa, bot xabarni matn o'rniga (yoki matn bilan birga, caption sifatida) rasm(lar) bilan yuboradi. */
   photoUrls?: string[];
   /** true bo'lsa, bot xabarni Telegram HTML formatlash bilan yuboradi (masalan <b>...</b>). */
@@ -16,14 +24,32 @@ interface NotifyInput {
 
 const TELEGRAM_API_BASE = "https://api.telegram.org";
 
+/** Foydalanuvchi tanlagan til (tanlamagan bo'lsa — o'zbekcha). */
+export async function getUserLanguage(userId: string): Promise<Language> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { language: true },
+  });
+  return userLanguage(user?.language);
+}
+
 export const notificationsService = {
   async notify(input: NotifyInput, opts: { awaitDelivery?: boolean } = {}) {
+    // Qabul qiluvchining tili — xabar shu tilda tuziladi va shu ko'rinishda
+    // bazaga ham yoziladi.
+    const user = await prisma.user.findUnique({
+      where: { id: input.userId },
+      select: { telegramId: true, language: true },
+    });
+    const lang = userLanguage(user?.language);
+    const text = typeof input.text === "function" ? input.text(lang) : input.text;
+
     const notification = await prisma.notification.create({
       data: {
         userId: input.userId,
         requestId: input.requestId,
         type: input.type as any,
-        text: input.text,
+        text,
       },
     });
 
@@ -31,7 +57,7 @@ export const notificationsService = {
     // bot mikroservisi ishlab turishini talab qilmaydi. Xato bo'lsa (masalan
     // foydalanuvchi botni bloklagan yoki hali /start bosmagan) asosiy oqim
     // to'xtab qolmasligi uchun xatoni yutib, faqat log qilamiz.
-    const delivery = this.sendToTelegram(input).catch((err) => {
+    const delivery = this.sendToTelegram({ ...input, text }, user?.telegramId).catch((err) => {
       logger.warn({ err, userId: input.userId }, "Telegramga bildirishnoma yuborib bo'lmadi");
     });
 
@@ -42,16 +68,19 @@ export const notificationsService = {
     return notification;
   },
 
-  async sendToTelegram(input: NotifyInput) {
+  async sendToTelegram(input: NotifyInput & { text: string }, telegramId?: string | null) {
     if (!config.telegramBotToken) {
       logger.warn("TELEGRAM_BOT_TOKEN sozlanmagan — bildirishnoma yuborilmadi");
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { id: input.userId } });
-    if (!user?.telegramId) return;
+    let chatId = telegramId;
+    if (!chatId) {
+      const user = await prisma.user.findUnique({ where: { id: input.userId } });
+      chatId = user?.telegramId;
+    }
+    if (!chatId) return;
 
-    const chatId = user.telegramId;
     const parseMode = input.html ? "HTML" : undefined;
     const apiUrl = `${TELEGRAM_API_BASE}/bot${config.telegramBotToken}`;
 

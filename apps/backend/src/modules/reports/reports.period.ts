@@ -1,4 +1,7 @@
+import { Language } from "@app/shared-types";
 import { config } from "../../core/config";
+import { DEFAULT_LANGUAGE } from "../../core/i18n";
+import { t } from "../../core/i18n/messages";
 
 /**
  * Hisobot davrlarini hisoblash (mahalliy vaqt bo'yicha).
@@ -24,8 +27,14 @@ export interface ReportPeriod {
   end: Date;
   /** Hisobot yuborilishi kerak bo'lgan lahza (UTC). */
   triggerAt: Date;
-  /** Foydalanuvchiga ko'rsatiladigan davr matni, masalan "10.08.2026 – 16.08.2026". */
+  /**
+   * Foydalanuvchiga ko'rsatiladigan davr matni, masalan
+   * "10.08.2026 – 16.08.2026". Oylik hisobotda oy nomi bor, shuning uchun
+   * u tilga bog'liq — `labelIn(lang)` orqali olinadi.
+   */
   label: string;
+  /** Davr matni tanlangan tilda (oy nomi tarjima qilinadi). */
+  labelIn: (lang: Language) => string;
 }
 
 const offsetMs = () => config.reportTzOffsetMinutes * MINUTE;
@@ -62,21 +71,6 @@ function isoDate(local: Date): string {
   return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}`;
 }
 
-const MONTH_NAMES_UZ = [
-  "Yanvar",
-  "Fevral",
-  "Mart",
-  "Aprel",
-  "May",
-  "Iyun",
-  "Iyul",
-  "Avgust",
-  "Sentabr",
-  "Oktabr",
-  "Noyabr",
-  "Dekabr",
-];
-
 /**
  * Oxirgi o'tib ketgan HAFTALIK hisobot davri.
  * Trigger: dushanba kuni `REPORT_WEEKLY_HOUR` (standart 07:00).
@@ -98,6 +92,9 @@ export function resolveWeeklyPeriod(now: Date = new Date()): ReportPeriod {
   // Hisobot triggerdan oldingi to'liq haftani qamraydi.
   const weekEndLocal = new Date(triggerLocal.getTime() - config.reportWeeklyHour * HOUR); // dushanba 00:00
   const weekStartLocal = new Date(weekEndLocal.getTime() - 7 * DAY);
+  const weeklyLabel = `${formatLocalDate(weekStartLocal)} – ${formatLocalDate(
+    new Date(weekEndLocal.getTime() - DAY)
+  )}`;
 
   return {
     type: "weekly",
@@ -105,9 +102,9 @@ export function resolveWeeklyPeriod(now: Date = new Date()): ReportPeriod {
     start: fromLocal(weekStartLocal),
     end: new Date(fromLocal(weekEndLocal).getTime() - 1), // yakshanba 23:59:59.999
     triggerAt: fromLocal(triggerLocal),
-    label: `${formatLocalDate(weekStartLocal)} – ${formatLocalDate(
-      new Date(weekEndLocal.getTime() - DAY)
-    )}`,
+    // Haftalik davr faqat sanalardan iborat — tilga bog'liq emas.
+    label: weeklyLabel,
+    labelIn: () => weeklyLabel,
   };
 }
 
@@ -138,15 +135,21 @@ export function resolveMonthlyPeriod(now: Date = new Date()): ReportPeriod {
 
   const monthStartLocal = makeLocal(year, month, 1);
 
+  // Oy nomi tilga bog'liq — matn har bir foydalanuvchi uchun o'z tilida
+  // quriladi (`labelIn`), `label` esa standart (o'zbekcha) variant.
+  const monthlyLabel = (lang: Language) =>
+    `${t(lang).report.monthNames[month]} ${year} (${formatLocalDate(
+      monthStartLocal
+    )} – ${formatLocalDate(triggerLocal)} ${pad(config.reportMonthlyHour)}:00)`;
+
   return {
     type: "monthly",
     key: `monthly-${year}-${pad(month + 1)}`,
     start: fromLocal(monthStartLocal),
     end: new Date(fromLocal(triggerLocal).getTime() - 1),
     triggerAt: fromLocal(triggerLocal),
-    label: `${MONTH_NAMES_UZ[month]} ${year} (${formatLocalDate(
-      monthStartLocal
-    )} – ${formatLocalDate(triggerLocal)} ${pad(config.reportMonthlyHour)}:00)`,
+    label: monthlyLabel(DEFAULT_LANGUAGE),
+    labelIn: monthlyLabel,
   };
 }
 

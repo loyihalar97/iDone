@@ -19,14 +19,39 @@ export interface RequestFilters {
   dateTo?: Date;
 }
 
-const includeRelations = {
+const baseRelations = {
   branch: { select: { id: true, name: true } },
   createdBy: { select: { id: true, fullName: true, role: true } },
   chiefTechnician: { select: { id: true, fullName: true } },
   technician: { select: { id: true, fullName: true } },
+} satisfies Prisma.RequestInclude;
+
+/**
+ * To'liq ma'lumot — bitta zayavka sahifasi va PDF/Excel eksport uchun
+ * (izohlar matni va mualliflari bilan).
+ */
+const includeRelations = {
+  ...baseRelations,
   comments: {
     include: { author: { select: { id: true, fullName: true, role: true } } },
     orderBy: { createdAt: "desc" },
+  },
+} satisfies Prisma.RequestInclude;
+
+/**
+ * RO'YXAT uchun yengil variant. Kartada izohlardan faqat "bloker izoh
+ * bormi?" degan belgi kerak — matni ham, muallifi ham ko'rsatilmaydi.
+ *
+ * Ilgari ro'yxat har bir zayavkaning BARCHA izohlarini mualliflari bilan
+ * birga tortardi: 100 ta zayavkali sahifada bu ortiqcha JOIN'lar va bir
+ * necha yuz kilobayt keraksiz JSON degani edi (Railway'da CPU + trafik).
+ */
+const listRelations = {
+  ...baseRelations,
+  comments: {
+    where: { isBlocker: true },
+    select: { id: true, isBlocker: true },
+    take: 1,
   },
 } satisfies Prisma.RequestInclude;
 
@@ -64,13 +89,22 @@ export const requestsRepository = {
     return prisma.request.findUnique({ where: { id }, include: includeRelations });
   },
 
-  findMany(filters: RequestFilters, skip: number, take: number) {
+  /**
+   * `opts.fullComments = true` — izohlar matni bilan (eksport/hisobot uchun).
+   * Standart holatda ro'yxat uchun yengil variant ishlatiladi.
+   */
+  findMany(
+    filters: RequestFilters,
+    skip: number,
+    take: number,
+    opts: { fullComments?: boolean } = {}
+  ) {
     const where = buildWhere(filters);
 
     return prisma.$transaction([
       prisma.request.findMany({
         where,
-        include: includeRelations,
+        include: opts.fullComments ? includeRelations : listRelations,
         // Avval Bosh texnik belgilagan ish ketma-ketligi (sortOrder), so'ngra
         // eng yangi zayavkalar. Yangi zayavkalar sortOrder=0 bilan tepada turadi.
         orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],

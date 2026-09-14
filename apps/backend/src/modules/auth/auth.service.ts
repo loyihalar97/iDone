@@ -5,6 +5,7 @@ import { config } from "../../core/config";
 import { AppError } from "../../core/errors/AppError";
 import { validateTelegramInitData } from "./telegramValidator";
 import { auditLogService } from "../audit-log/audit-log.service";
+import { tx } from "../../core/i18n";
 
 export interface AuthTokenPayload {
   userId: string;
@@ -44,7 +45,7 @@ export const authService = {
 
     if (!user.isActive) {
       throw AppError.forbidden(
-        "Hisobingiz hali faollashtirilmagan. Iltimos, administratorga murojaat qiling."
+        tx("Hisobingiz hali faollashtirilmagan. Iltimos, administratorga murojaat qiling.", "Ваш аккаунт ещё не активирован. Пожалуйста, обратитесь к администратору.")
       );
     }
 
@@ -61,7 +62,7 @@ export const authService = {
         managedBranches: { include: { branch: { select: { id: true, name: true } } } },
       },
     });
-    if (!user) throw AppError.notFound("Foydalanuvchi topilmadi");
+    if (!user) throw AppError.notFound(tx("Foydalanuvchi topilmadi", "Пользователь не найден"));
     return user;
   },
 };
@@ -74,6 +75,9 @@ export function toCurrentUserDto(user: any) {
     role: user.role,
     branchId: user.branchId,
     branchName: user.branch?.name ?? null,
+    // Tanlangan interfeys tili. null bo'lsa — Mini App til tanlash
+    // oynasini ko'rsatadi (birinchi kirish).
+    language: user.language ?? null,
     // Hududiy rahbarga biriktirilgan filiallar.
     managedBranches: (user.managedBranches ?? []).map((mb: any) => ({
       id: mb.branch.id,
@@ -92,6 +96,6 @@ export function verifyToken(token: string): AuthTokenPayload {
   try {
     return jwt.verify(token, config.jwtSecret) as AuthTokenPayload;
   } catch {
-    throw AppError.unauthorized("Token yaroqsiz yoki muddati o'tgan");
+    throw AppError.unauthorized(tx("Token yaroqsiz yoki muddati o'tgan", "Токен недействителен или истёк"));
   }
 }

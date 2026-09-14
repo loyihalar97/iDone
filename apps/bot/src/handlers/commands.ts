@@ -1,38 +1,34 @@
 import { Telegraf, Markup } from "telegraf";
 import { config } from "../config";
+import { bt } from "../i18n";
 
 export function registerHandlers(bot: Telegraf) {
   bot.start(async (ctx) => {
+    const m = bt(ctx.from.language_code);
     await ctx.reply(
-      `Assalomu alaykum, ${ctx.from.first_name}! 👋\n\n` +
-        `Bu bot orqali restoran/filiallar tarmog'idagi texnik muammolar bo'yicha zayavkalarni yuritasiz.\n\n` +
-        `Ilovani ochish uchun quyidagi tugmani bosing.`,
-      Markup.keyboard([[Markup.button.webApp("🛠 Ilovani ochish", config.miniAppUrl)]]).resize()
+      m.start(ctx.from.first_name),
+      Markup.keyboard([[Markup.button.webApp(m.openApp, config.miniAppUrl)]]).resize()
     );
   });
 
   bot.help(async (ctx) => {
-    await ctx.reply(
-      "ℹ️ Yordam:\n\n" +
-        "• /start — botni ishga tushirish va Mini App'ni ochish\n" +
-        "• Ilova ichida rolingizga qarab (Direktor / Bosh texnik / Texnik / Superadmin) zayavkalar bilan ishlaysiz\n" +
-        "• Zayavka holati o'zgarganda sizga shu yerda avtomatik xabar keladi\n\n" +
-        "Savollar bo'lsa, tizim administratoriga murojaat qiling."
-    );
+    await ctx.reply(bt(ctx.from?.language_code).help);
   });
 
   bot.command("app", async (ctx) => {
+    const m = bt(ctx.from?.language_code);
     await ctx.reply(
-      "Ilovani ochish:",
-      Markup.inlineKeyboard([Markup.button.webApp("🛠 Ochish", config.miniAppUrl)])
+      m.openAppPrompt,
+      Markup.inlineKeyboard([Markup.button.webApp(m.openShort, config.miniAppUrl)])
     );
   });
 
   // Botga kelgan boshqa har qanday matnli xabarga qisqa yo'l-yo'riq
   bot.on("text", async (ctx) => {
+    const m = bt(ctx.from?.language_code);
     await ctx.reply(
-      "Zayavka yaratish yoki ko'rish uchun ilovani oching 👇",
-      Markup.inlineKeyboard([Markup.button.webApp("🛠 Ilovani ochish", config.miniAppUrl)])
+      m.fallback,
+      Markup.inlineKeyboard([Markup.button.webApp(m.openApp, config.miniAppUrl)])
     );
   });
 }

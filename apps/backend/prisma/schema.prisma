@@ -37,6 +37,14 @@ enum Priority {
   critical
 }
 
+// Foydalanuvchi interfeysi va hisobotlar tili.
+// null — foydalanuvchi hali tilni tanlamagan (Mini App birinchi kirganda
+// til tanlash oynasini ko'rsatadi).
+enum Language {
+  uz
+  ru
+}
+
 enum NotificationType {
   request_created
   technician_assigned
@@ -87,6 +95,8 @@ model User {
   branchId    String?  @map("branch_id")
   branch      Branch?  @relation(fields: [branchId], references: [id])
   isActive    Boolean  @default(true) @map("is_active")
+  // Tanlangan interfeys/hisobot tili. null — foydalanuvchi hali tanlamagan.
+  language    Language?
   createdAt   DateTime @default(now()) @map("created_at")
 
   createdRequests      Request[] @relation("CreatedBy")
@@ -211,7 +221,10 @@ model Notification {
 model TaskCategory {
   id        String   @id @default(uuid())
   key       String   @unique
+  // O'zbekcha nomi (asosiy).
   label     String
+  // Ruscha nomi. Bo'sh bo'lsa — o'zbekchasi ko'rsatiladi.
+  labelRu   String?  @map("label_ru")
   isActive  Boolean  @default(true) @map("is_active")
   sortOrder Int      @default(0) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at")

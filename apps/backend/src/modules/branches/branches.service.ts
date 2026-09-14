@@ -1,6 +1,7 @@
 import { prisma } from "../../core/database/prisma";
 import { AppError } from "../../core/errors/AppError";
 import { auditLogService } from "../audit-log/audit-log.service";
+import { tx } from "../../core/i18n";
 
 export const branchesService = {
   list(activeOnly = false) {
@@ -28,7 +29,7 @@ export const branchesService = {
     actorId: string
   ) {
     const branch = await prisma.branch.findUnique({ where: { id } });
-    if (!branch) throw AppError.notFound("Filial topilmadi");
+    if (!branch) throw AppError.notFound(tx("Filial topilmadi", "Филиал не найден"));
 
     const updated = await prisma.branch.update({ where: { id }, data });
     await auditLogService.log({
@@ -43,7 +44,7 @@ export const branchesService = {
 
   async remove(id: string, actorId: string) {
     const branch = await prisma.branch.findUnique({ where: { id } });
-    if (!branch) throw AppError.notFound("Filial topilmadi");
+    if (!branch) throw AppError.notFound(tx("Filial topilmadi", "Филиал не найден"));
 
     const [userCount, requestCount, managerCount] = await Promise.all([
       prisma.user.count({ where: { branchId: id } }),
@@ -53,7 +54,7 @@ export const branchesService = {
     ]);
     if (userCount > 0 || requestCount > 0 || managerCount > 0) {
       throw AppError.validation(
-        "Bu filialga bog'liq xodim yoki zayavkalar bor. O'chirish o'rniga uni faolsizlantiring."
+        tx("Bu filialga bog'liq xodim yoki zayavkalar bor. O'chirish o'rniga uni faolsizlantiring.", "С этим филиалом связаны сотрудники или заявки. Вместо удаления деактивируйте его.")
       );
     }
 

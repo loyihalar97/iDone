@@ -1,6 +1,7 @@
 import { Telegraf } from "telegraf";
 import { config } from "./config";
 import { registerHandlers } from "./handlers/commands";
+import { botMessages } from "./i18n";
 
 export function createBot() {
   if (!config.botToken) {
@@ -16,7 +17,7 @@ export function createBot() {
     .setChatMenuButton({
       menuButton: {
         type: "web_app",
-        text: "Ilovani ochish",
+        text: botMessages.uz.commands.app,
         web_app: { url: config.miniAppUrl },
       },
     })
@@ -24,12 +25,18 @@ export function createBot() {
       // Bot hali to'liq sozlanmagan bo'lsa (masalan noto'g'ri token), xatoni yutamiz
     });
 
+  // Buyruqlar ikki tilda — Telegram foydalanuvchi tiliga qarab ko'rsatadi.
+  const commandsFor = (lang: "uz" | "ru") => {
+    const c = botMessages[lang].commands;
+    return [
+      { command: "start", description: c.start },
+      { command: "app", description: c.app },
+      { command: "help", description: c.help },
+    ];
+  };
+  bot.telegram.setMyCommands(commandsFor("uz")).catch(() => {});
   bot.telegram
-    .setMyCommands([
-      { command: "start", description: "Botni ishga tushirish" },
-      { command: "app", description: "Ilovani ochish" },
-      { command: "help", description: "Yordam" },
-    ])
+    .setMyCommands(commandsFor("ru"), { language_code: "ru" } as any)
     .catch(() => {});
 
   return bot;

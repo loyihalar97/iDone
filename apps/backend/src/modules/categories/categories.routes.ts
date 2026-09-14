@@ -1,23 +1,26 @@
 import { Router } from "express";
 import { z } from "zod";
-import { PRIORITY_LABELS_UZ, STATUS_LABELS_UZ, Role } from "@app/shared-types";
+import { PRIORITY_LABELS, STATUS_LABELS, Role } from "@app/shared-types";
 import { asyncHandler } from "../../core/errors/errorHandler";
 import { requireAuth, requireRole } from "../../core/middlewares/requireAuth";
-import { categoriesService } from "./categories.service";
+import { categoriesService, pickCategoryLabel } from "./categories.service";
+import { getRequestLanguage } from "../../core/i18n";
 
 export const categoriesRouter = Router();
 
-// Barcha foydalanuvchilar uchun — faol kategoriyalar (zayavka yaratishda ishlatiladi).
+// Barcha foydalanuvchilar uchun — faol kategoriyalar (zayavka yaratishda
+// ishlatiladi). Nomlar so'rovdagi tilda (X-Lang) qaytariladi.
 categoriesRouter.get(
   "/",
   requireAuth,
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const lang = getRequestLanguage(req);
     const cats = await categoriesService.listActive();
-    res.json(cats.map((c) => ({ value: c.key, label: c.label })));
+    res.json(cats.map((c) => ({ value: c.key, label: pickCategoryLabel(c, lang) })));
   })
 );
 
-// Superadmin — boshqarish uchun to'liq ro'yxat (id, isActive, sortOrder bilan).
+// Superadmin — boshqarish uchun to'liq ro'yxat (ikkala tildagi nomlar bilan).
 categoriesRouter.get(
   "/manage",
   requireAuth,
@@ -29,6 +32,8 @@ categoriesRouter.get(
 
 const createSchema = z.object({
   label: z.string().min(2).max(60),
+  /** Ruscha nomi (ixtiyoriy — bo'sh bo'lsa o'zbekchasi ko'rsatiladi). */
+  labelRu: z.string().max(60).optional(),
   key: z.string().min(1).max(60).optional(),
 });
 
@@ -44,6 +49,7 @@ categoriesRouter.post(
 
 const updateSchema = z.object({
   label: z.string().min(2).max(60).optional(),
+  labelRu: z.string().max(60).nullable().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 });
@@ -67,10 +73,12 @@ categoriesRouter.delete(
   })
 );
 
-categoriesRouter.get("/priorities", requireAuth, (_req, res) => {
-  res.json(Object.entries(PRIORITY_LABELS_UZ).map(([value, label]) => ({ value, label })));
+categoriesRouter.get("/priorities", requireAuth, (req, res) => {
+  const labels = PRIORITY_LABELS[getRequestLanguage(req)];
+  res.json(Object.entries(labels).map(([value, label]) => ({ value, label })));
 });
 
-categoriesRouter.get("/statuses", requireAuth, (_req, res) => {
-  res.json(Object.entries(STATUS_LABELS_UZ).map(([value, label]) => ({ value, label })));
+categoriesRouter.get("/statuses", requireAuth, (req, res) => {
+  const labels = STATUS_LABELS[getRequestLanguage(req)];
+  res.json(Object.entries(labels).map(([value, label]) => ({ value, label })));
 });

@@ -1,6 +1,7 @@
 import express, { Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import compression from "compression";
 import pinoHttp from "pino-http";
 import path from "path";
 import fs from "fs";
@@ -35,11 +36,36 @@ export function createApp() {
   const corsOrigin =
     !config.frontendOrigin || config.frontendOrigin === "*" ? true : config.frontendOrigin;
   app.use(cors({ origin: corsOrigin, credentials: true }));
+  // JSON javoblarni (va statik/eksport fayllarni) siqib, tarmoq (egress)
+  // trafigini kamaytiradi — Railway network xarajatiga bevosita ta'sir qiladi.
+  app.use(compression());
   app.use(express.json({ limit: "10mb" }));
-  app.use(pinoHttp({ logger }));
+  // /health — Railway har necha soniyada tekshiradi. Uni loglash CPU va
+  // log hajmini bekorga oshiradi, shuning uchun o'tkazib yuboramiz.
+  app.use(
+    pinoHttp({
+      logger,
+      autoLogging: { ignore: (req) => req.url === "/health" || req.url === "/healthz" },
+    })
+  );
 
-  // Lokal saqlangan rasm/video fayllarga statik ulanish (STORAGE_DRIVER=local uchun)
-  app.use("/uploads", express.static(path.resolve(process.cwd(), config.localUploadDir)));
+  // Lokal saqlangan rasm/video fayllarga statik ulanish (STORAGE_DRIVER=local uchun).
+  //
+  // Fayl nomlari takrorlanmas (vaqt belgisi + tasodifiy hex), ya'ni bitta URL
+  // hech qachon boshqa rasmni ko'rsatmaydi — shuning uchun brauzerga uzoq
+  // muddat keshlashga ruxsat beramiz. Bu Railway'dagi egress (chiquvchi
+  // trafik) xarajatini sezilarli kamaytiradi: bir marta ko'rilgan rasm
+  // qayta yuklab olinmaydi.
+  app.use(
+    "/uploads",
+    express.static(path.resolve(process.cwd(), config.localUploadDir), {
+      maxAge: "30d",
+      immutable: true,
+      etag: true,
+      // Yo'q fayl uchun index.html qaytmasligi kerak (o'chirilgan rasmlar).
+      fallthrough: true,
+    })
+  );
 
   app.get("/health", (_req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
 
@@ -69,7 +95,22 @@ export function finalizeApp(app: Express) {
 
   if (hasFrontend) {
     logger.info(`Frontend statik fayllari beriladi: ${publicDir}`);
-    app.use(express.static(publicDir));
+    // Vite build fayl nomlariga hash qo'shadi (index-Bc8eF-wo.js), ya'ni
+    // kontent o'zgarsa nom ham o'zgaradi — ularni bir yil keshlash xavfsiz.
+    // index.html esa hech qachon keshlanmasligi kerak, aks holda
+    // foydalanuvchi eski versiyada qolib ketadi.
+    app.use(
+      express.static(publicDir, {
+        maxAge: "1y",
+        immutable: true,
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith("index.html")) {
+            res.setHeader("Cache-Control", "no-cache");
+          }
+        },
+      })
+    );
 
     // SPA fallback — API/upload/health/webhook bo'lmagan GET so'rovlarga index.html.
     app.get("*", (req, res, next) => {
@@ -81,6 +122,7 @@ export function finalizeApp(app: Express) {
       ) {
         return next();
       }
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(indexHtml);
     });
   }

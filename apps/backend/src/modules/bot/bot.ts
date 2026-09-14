@@ -1,7 +1,11 @@
 import { Telegraf, Markup } from "telegraf";
 import type { Express } from "express";
+import { Language, normalizeLanguage } from "@app/shared-types";
 import { config } from "../../core/config";
 import { logger } from "../../core/logger";
+import { prisma } from "../../core/database/prisma";
+import { DEFAULT_LANGUAGE, userLanguage } from "../../core/i18n";
+import { t } from "../../core/i18n/messages";
 
 /**
  * Telegram bot — endi backend jarayonining ichida ishlaydi (alohida
@@ -15,36 +19,54 @@ import { logger } from "../../core/logger";
 
 let botInstance: Telegraf | null = null;
 
+/**
+ * Chat egasining tili: avval bazadagi tanlovi (Mini App'dagi UZ/RU tugmasi),
+ * bo'lmasa Telegram ilovasining tili, u ham noma'lum bo'lsa — o'zbekcha.
+ */
+async function resolveChatLanguage(
+  telegramId?: number | string,
+  telegramLangCode?: string
+): Promise<Language> {
+  if (telegramId !== undefined) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { telegramId: String(telegramId) },
+        select: { language: true },
+      });
+      if (user?.language) return userLanguage(user.language);
+    } catch (err) {
+      logger.warn({ err }, "Bot: foydalanuvchi tilini aniqlab bo'lmadi");
+    }
+  }
+  return normalizeLanguage(telegramLangCode, DEFAULT_LANGUAGE);
+}
+
 function registerHandlers(bot: Telegraf) {
   const miniAppUrl = config.miniAppUrl;
-  const openButton = () =>
-    Markup.inlineKeyboard([Markup.button.webApp("🛠 Ilovani ochish", miniAppUrl)]);
+  const openButton = (lang: Language) =>
+    Markup.inlineKeyboard([Markup.button.webApp(t(lang).bot.openApp, miniAppUrl)]);
 
   bot.start(async (ctx) => {
+    const lang = await resolveChatLanguage(ctx.from.id, ctx.from.language_code);
     await ctx.reply(
-      `Assalomu alaykum, ${ctx.from.first_name}! 👋\n\n` +
-        `Bu bot orqali restoran/filiallar tarmog'idagi texnik muammolar bo'yicha zayavkalarni yuritasiz.\n\n` +
-        `Ilovani ochish uchun quyidagi tugmani bosing.`,
-      Markup.keyboard([[Markup.button.webApp("🛠 Ilovani ochish", miniAppUrl)]]).resize()
+      t(lang).bot.start(ctx.from.first_name),
+      Markup.keyboard([[Markup.button.webApp(t(lang).bot.openApp, miniAppUrl)]]).resize()
     );
   });
 
   bot.help(async (ctx) => {
-    await ctx.reply(
-      "ℹ️ Yordam:\n\n" +
-        "• /start — botni ishga tushirish va Mini App'ni ochish\n" +
-        "• Ilova ichida rolingizga qarab (Direktor / Bosh texnik / Texnik / Superadmin) zayavkalar bilan ishlaysiz\n" +
-        "• Zayavka holati o'zgarganda sizga shu yerda avtomatik xabar keladi\n\n" +
-        "Savollar bo'lsa, tizim administratoriga murojaat qiling."
-    );
+    const lang = await resolveChatLanguage(ctx.from?.id, ctx.from?.language_code);
+    await ctx.reply(t(lang).bot.help);
   });
 
   bot.command("app", async (ctx) => {
-    await ctx.reply("Ilovani ochish:", openButton());
+    const lang = await resolveChatLanguage(ctx.from?.id, ctx.from?.language_code);
+    await ctx.reply(t(lang).bot.openAppPrompt, openButton(lang));
   });
 
   bot.on("text", async (ctx) => {
-    await ctx.reply("Zayavka yaratish yoki ko'rish uchun ilovani oching 👇", openButton());
+    const lang = await resolveChatLanguage(ctx.from?.id, ctx.from?.language_code);
+    await ctx.reply(t(lang).bot.fallback, openButton(lang));
   });
 }
 
@@ -74,16 +96,28 @@ export async function attachBot(app: Express): Promise<Telegraf | null> {
   if (config.miniAppUrl) {
     bot.telegram
       .setChatMenuButton({
-        menuButton: { type: "web_app", text: "Ilovani ochish", web_app: { url: config.miniAppUrl } },
+        menuButton: {
+          type: "web_app",
+          text: t(DEFAULT_LANGUAGE).bot.commands.app,
+          web_app: { url: config.miniAppUrl },
+        },
       })
       .catch(() => {});
   }
+
+  // Buyruqlar ro'yxati ikki tilda: Telegram foydalanuvchining ilova tiliga
+  // qarab mos variantni ko'rsatadi (standarti — o'zbekcha).
+  const commandsFor = (lang: Language) => {
+    const c = t(lang).bot.commands;
+    return [
+      { command: "start", description: c.start },
+      { command: "app", description: c.app },
+      { command: "help", description: c.help },
+    ];
+  };
+  bot.telegram.setMyCommands(commandsFor(DEFAULT_LANGUAGE)).catch(() => {});
   bot.telegram
-    .setMyCommands([
-      { command: "start", description: "Botni ishga tushirish" },
-      { command: "app", description: "Ilovani ochish" },
-      { command: "help", description: "Yordam" },
-    ])
+    .setMyCommands(commandsFor(Language.RU), { language_code: "ru" } as any)
     .catch(() => {});
 
   if (config.useWebhook) {

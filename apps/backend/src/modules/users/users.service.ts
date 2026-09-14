@@ -1,7 +1,8 @@
-import { Role } from "@app/shared-types";
+import { Language, Role } from "@app/shared-types";
 import { prisma } from "../../core/database/prisma";
 import { AppError } from "../../core/errors/AppError";
 import { auditLogService } from "../audit-log/audit-log.service";
+import { tx } from "../../core/i18n";
 
 export const usersService = {
   list(filters: { role?: Role; branchId?: string; isActive?: boolean }) {
@@ -33,20 +34,20 @@ export const usersService = {
     actorId: string
   ) {
     const user = await prisma.user.findUnique({ where: { id } });
-    if (!user) throw AppError.notFound("Foydalanuvchi topilmadi");
+    if (!user) throw AppError.notFound(tx("Foydalanuvchi topilmadi", "Пользователь не найден"));
 
     const needsSingleBranch = data.role === Role.DIRECTOR || data.role === Role.BRANCH_MANAGER;
     if (needsSingleBranch && !data.branchId && !user.branchId) {
       throw AppError.validation(
         data.role === Role.DIRECTOR
-          ? "Direktor uchun filial belgilanishi shart"
-          : "Filial menejeri uchun filial belgilanishi shart"
+          ? tx("Direktor uchun filial belgilanishi shart", "Для директора необходимо указать филиал")
+          : tx("Filial menejeri uchun filial belgilanishi shart", "Для менеджера филиала необходимо указать филиал")
       );
     }
 
     if (data.role === Role.REGIONAL_MANAGER && (data.branchIds ?? []).length === 0) {
       throw AppError.validation(
-        "Hududiy rahbar uchun kamida bitta filial biriktirilishi shart"
+        tx("Hududiy rahbar uchun kamida bitta filial biriktirilishi shart", "Региональному руководителю нужно назначить хотя бы один филиал")
       );
     }
 
@@ -58,8 +59,10 @@ export const usersService = {
         : data.branchId
       : null;
 
-    const updated = await prisma.$transaction(async (tx: any) => {
-      const u = await tx.user.update({
+    // DIQQAT: tranzaksiya klienti `db` deb nomlangan — `tx()` i18n yordamchisi
+    // bilan chalkashmasligi uchun.
+    const updated = await prisma.$transaction(async (db: any) => {
+      const u = await db.user.update({
         where: { id },
         data: {
           role: data.role,
@@ -69,9 +72,9 @@ export const usersService = {
       });
 
       // Ko'p-filial biriktiruvlari faqat Hududiy rahbarda saqlanadi.
-      await tx.userBranch.deleteMany({ where: { userId: id } });
+      await db.userBranch.deleteMany({ where: { userId: id } });
       if (data.role === Role.REGIONAL_MANAGER && data.branchIds?.length) {
-        await tx.userBranch.createMany({
+        await db.userBranch.createMany({
           data: data.branchIds.map((branchId: string) => ({ userId: id, branchId })),
           skipDuplicates: true,
         });
@@ -88,6 +91,24 @@ export const usersService = {
       metadata: data,
     });
 
+    return updated;
+  },
+
+  /**
+   * Foydalanuvchining interfeys/hisobot tilini saqlaydi.
+   *
+   * Shu qiymat butun tizim bo'ylab ishlatiladi: Mini App interfeysi,
+   * Telegram bildirishnomalari va PDF/Excel hisobotlar shu tilda chiqadi.
+   */
+  async setLanguage(id: string, language: Language) {
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { language: language as any },
+      include: {
+        branch: true,
+        managedBranches: { include: { branch: { select: { id: true, name: true } } } },
+      },
+    });
     return updated;
   },
 
@@ -116,11 +137,11 @@ export const usersService = {
   async remove(id: string, actorId: string) {
     if (id === actorId) {
       throw AppError.validation(
-        "O'zingizni o'chira olmaysiz. Boshqa superadmin orqali o'chiring."
+        tx("O'zingizni o'chira olmaysiz. Boshqa superadmin orqali o'chiring.", "Вы не можете удалить самого себя. Сделайте это через другого суперадмина.")
       );
     }
     const user = await prisma.user.findUnique({ where: { id } });
-    if (!user) throw AppError.notFound("Foydalanuvchi topilmadi");
+    if (!user) throw AppError.notFound(tx("Foydalanuvchi topilmadi", "Пользователь не найден"));
 
     await prisma.$transaction([
       // Yaratgan zayavkalarini adminга o'tkazamiz (ma'lumot saqlanadi).

@@ -1,11 +1,28 @@
 import { Router } from "express";
 import { z } from "zod";
-import { Role } from "@app/shared-types";
+import { Language, Role } from "@app/shared-types";
 import { asyncHandler } from "../../core/errors/errorHandler";
 import { requireAuth, requireRole } from "../../core/middlewares/requireAuth";
 import { usersService } from "./users.service";
+import { toCurrentUserDto } from "../auth/auth.service";
 
 export const usersRouter = Router();
+
+// ── Til ────────────────────────────────────────────────────────────────────
+// Foydalanuvchi Mini App'dagi UZ/RU tugmasi orqali tilni tanlaydi. Tanlov
+// serverda saqlanadi, shuning uchun boshqa qurilmada ham, Telegram
+// bildirishnomalarida ham, hisobotlarda ham o'sha til ishlatiladi.
+const languageSchema = z.object({ language: z.nativeEnum(Language) });
+
+usersRouter.patch(
+  "/me/language",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { language } = languageSchema.parse(req.body);
+    const user = await usersService.setLanguage(req.auth!.userId, language);
+    res.json(toCurrentUserDto(user));
+  })
+);
 
 // Bo'sh qatorlar (?branchId=) undefined sifatida qabul qilinadi — aks holda
 // Prisma validatsiya xatosi 500 bo'lib qaytardi.
