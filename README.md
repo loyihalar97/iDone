@@ -37,6 +37,42 @@ Zayavka hayot sikli: `Yangi → Jarayonda → Texnik tugatdi → Bosh texnik tas
 
 ---
 
+## Til: O'zbekcha / Ruscha
+
+Tizim **ikki tilli** — har bir xodim o'zi uchun tilni tanlaydi va tanlov
+serverda (`users.language`) saqlanadi.
+
+| Qayerda | Qanday ishlaydi |
+|---|---|
+| **Til tanlash** | Birinchi kirishda til tanlash oynasi chiqadi; keyin sarlavhadagi **UZ / RU** tugmasi orqali istalgan paytda o'zgartiriladi |
+| **Interfeys** | Barcha ekranlar, tugmalar, filtrlar, bo'sh ro'yxat matnlari, holat/muhimlik/lavozim nomlari |
+| **Server xatolari** | Har bir so'rovda `X-Lang` header yuboriladi — xato xabarlari ham shu tilda qaytadi |
+| **Telegram bildirishnomalari** | Har bir xodim **o'z tilida** oladi: bitta zayavka ochilganda direktorga o'zbekcha, bosh texnikka ruscha xabar borishi mumkin |
+| **PDF / Excel hisobotlar** | Ustun sarlavhalari, holat va lavozim nomlari, sana formati, "Jami harajat" qatori — hammasi tanlangan tilda |
+| **Avtomatik haftalik/oylik hisobotlar** | Har bir qabul qiluvchiga o'z tilida (oy nomi ham tarjima qilinadi) |
+| **Bot javoblari** | `/start`, `/help`, `/app` — bazadagi til bo'yicha, u yo'q bo'lsa Telegram ilovasi tili bo'yicha |
+
+**Kategoriyalar (topshiriq turlari)** DB'da saqlanadi va ikkita nomga ega:
+o'zbekcha (`label`) va ruscha (`labelRu`). Superadmin ikkalasini
+"Kategoriyalar" bo'limida kiritadi; ruscha nomi bo'sh bo'lsa, rus tilidagi
+foydalanuvchiga o'zbekcha nomi ko'rsatiladi (va admin ro'yxatida
+"Ruscha nomi yo'q" ogohlantirishi chiqadi).
+
+Tarjimalar quyidagi fayllarda turadi:
+
+```
+apps/frontend/src/shared/i18n/uz.ts   # interfeys matnlari (asosiy manba)
+apps/frontend/src/shared/i18n/ru.ts   # ruscha tarjima (tipi uz.ts dan olinadi)
+apps/backend/src/core/i18n/messages.ts # bildirishnoma, hisobot va bot matnlari
+packages/shared-types/src/enums.ts     # holat/muhimlik/lavozim/kategoriya nomlari
+```
+
+> `ru.ts` `uz.ts`ning tipiga bo'ysunadi — yangi matn qo'shilganda ruschasi
+> yozilmasa, loyiha **kompilyatsiya bo'lmaydi**. Shu tufayli interfeys hech
+> qachon yarim tarjima holatda qolmaydi.
+
+---
+
 ## 1. Lokal ishga tushirish
 
 ### Talablar

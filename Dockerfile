@@ -57,6 +57,13 @@ COPY --from=build /repo/apps/frontend/dist ./public
 
 RUN mkdir -p uploads
 
+# Xotira shifti (cap): standart holatda Node katta v8 heap'ini asta-sekin
+# egallab, hech qachon OS'ga qaytarmasligi mumkin (ayniqsa sharp/libvips
+# kabi native kutubxonalar bilan birga ishlaganda RSS o'sib boradi).
+# 384MB — bu ilova uchun yetarli, lekin Railway'da xotira sarfini
+# nazoratda ushlab turadi (V8 shu chegaraga yetganda majburiy GC qiladi).
+ENV NODE_OPTIONS="--max-old-space-size=384"
+
 EXPOSE 4000
 # 1) premigrate: eski enum ustunini xavfsiz text ga o'tkazadi (kerak bo'lsa)
 # 2) prisma db push: migratsiya fayllarisiz sxemani bazaga qo'llaydi

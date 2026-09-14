@@ -1,4 +1,4 @@
-import { Category, NotificationType, Priority, RequestStatus, Role } from "./enums";
+import { Category, Language, NotificationType, Priority, RequestStatus, Role } from "./enums";
 
 export interface UserDTO {
   id: string;
@@ -7,6 +7,8 @@ export interface UserDTO {
   role: Role;
   branchId: string | null;
   isActive: boolean;
+  /** Foydalanuvchi tanlagan interfeys tili. `null` — hali tanlamagan. */
+  language: Language | null;
 }
 
 export interface BranchDTO {

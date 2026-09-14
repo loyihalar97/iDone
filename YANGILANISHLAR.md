@@ -1,5 +1,181 @@
 # Yangilanishlar
 
+## 2026-09-14 — Railway xarajatini kamaytirish: rasmlar va trafik
+
+Railway Usage ko'tarilib ketgani uchun rasm oqimi va chiquvchi trafik
+qaytadan ko'rib chiqildi.
+
+### 1. Rasmlar zayavka yopilgan zahoti o'chiriladi
+
+Ilgari rasmlar yopilgandan keyin ham **7 kun** diskda turardi. Endi
+zayavka yopilishi bilan rasmlar **diskdan ham, bazadan ham darhol**
+o'chiriladi (`MEDIA_RETENTION_DAYS` standarti `7` → `0`).
+
+Bu xavfsiz, chunki "zayavka yopildi" xabari Telegramga rasmlar bilan
+birga **yetkazilib bo'lgandan keyin** o'chiriladi — Telegram rasmni o'z
+serveriga yuklab oladi, shuning uchun bot chatida rasmlar avvalgidek
+ko'rinib turaveradi. Faqat ilova ichidagi yopilgan zayavkada rasm
+ko'rinmaydi.
+
+Natijada volume hajmi endi faqat **ochiq** zayavkalar hajmida turadi.
+
+### 2. Har bir rasm — maksimum 0.2 MB
+
+Siqish chegarasi 1 MB dan **0.2 MB** ga tushirildi (`MAX_IMAGE_KB=200`),
+maksimal kenglik 1920 → **1280 px**. Sinovda 4.5 MB lik surat **20–170 KB**
+oralig'iga tushdi va sifat ko'zga sezilarli darajada yomonlashmadi.
+
+Nega kenglik ham kamaytirildi: 0.2 MB ga faqat sifatni pasaytirib yetish
+rasmni "bulg'aydi". 1280 px @ sifat 72 chiqqan rasm 1600 px @ sifat 45 dan
+ancha toza ko'rinadi, hajmi esa bir xil. 1280 px telefon ekrani (odatda
+1080 px) uchun, hatto kattalashtirib ko'rganda ham, yetarli.
+
+Siqish algoritmi ham tezlashtirildi: boshlang'ich sifat 85 dan 72 ga
+tushirildi, shuning uchun odatiy surat **bir marta** siqiladi (ilgari
+2-3 marta qayta siqilardi) — bu deyarli har bir yuklashda tejalgan CPU.
+
+### 3. Ro'yxat uchun kichik nusxalar (thumbnail)
+
+Bu — **eng katta trafik tejalishi**. Zayavkalar ro'yxatida har bir karta
+40×40 px rasmcha ko'rsatadi, lekin brauzer TO'LIQ rasmni yuklab olardi.
+100 ta zayavkali sahifa ~50 MB trafik degani edi.
+
+Endi yuklash paytida `*_thumb.jpg` (320 px, ~20 KB) yaratiladi va ro'yxat
+faqat shuni yuklaydi (`loading="lazy"` bilan). Xuddi shu sahifa endi
+~2 MB. Eski (thumbnail'siz) rasmlar uchun avtomatik to'liq rasmga
+qaytiladi — hech narsa buzilmaydi.
+
+### 4. Kesh sarlavhalari
+
+| Nima | Kesh |
+|---|---|
+| Rasmlar (`/uploads/...`) | 30 kun, `immutable` |
+| Frontend fayllari (hash'li nomlar) | 1 yil, `immutable` |
+| `index.html` | keshlanmaydi (yangilanish darhol yetib boradi) |
+
+Ilgari hech qanday kesh sarlavhasi yo'q edi — ilova har ochilganda 400 KB
+lik JS va barcha rasmlar qaytadan yuklanardi.
+
+### 5. Ortiqcha so'rov va so'rovlarni yengillashtirish
+
+- **Zayavkalar ro'yxati** endi har bir zayavkaning barcha izohlarini
+  mualliflari bilan tortmaydi — kartada faqat "izoh bormi?" belgisi kerak.
+  Eksport va hisobotlar esa avvalgidek to'liq izohlar bilan ishlaydi.
+- **Texniklar nazorati** sahifasi har 30 soniyada emas, **3 daqiqada**
+  yangilanadi va ilova fonda bo'lganda umuman so'rov yubormaydi. Ochiq
+  turgan bitta telefon kuniga ~2900 ta so'rov o'rniga ~480 ta yuboradi.
+- **Hisobot rejalashtiruvchisi** har bir foydalanuvchi uchun alohida
+  so'rov qilmaydi: bitta so'rov bilan kim allaqachon olganini aniqlab,
+  hammasi olgan bo'lsa darhol chiqadi. Tekshiruv oralig'i 10 → 30 daqiqa.
+- **`/health`** so'rovlari endi loglanmaydi (Railway uni doimiy tekshiradi).
+
+### Yangi sozlamalar
+
+| O'zgaruvchi | Standart | Ma'nosi |
+|---|---|---|
+| `MEDIA_RETENTION_DAYS` | `0` | `0` — yopilgan zahoti; `N` — N kundan keyin; `-1` — hech qachon |
+| `MAX_IMAGE_KB` | `200` | Rasmning maksimal hajmi (0.2 MB) |
+| `THUMBNAIL_WIDTH` | `320` | Kichik nusxa kengligi. `0` — yaratilmasin |
+| `MAX_UPLOAD_MB` | `15` | Siqishdan oldingi maksimal fayl hajmi (ilgari 25) |
+| `MEDIA_CLEANUP_INTERVAL_MINUTES` | `720` | Fon tekshiruvi oralig'i (ilgari 360) |
+| `REPORT_CHECK_INTERVAL_MINUTES` | `30` | Hisobot tekshiruvi oralig'i (ilgari 10) |
+
+Hech qanday o'zgaruvchi kiritish shart emas — standart qiymatlar
+allaqachon tejamkor. Eski xatti-harakatni qaytarish kerak bo'lsa
+(masalan rasmlar 7 kun tursin), `MEDIA_RETENTION_DAYS=7` qo'ying.
+
+## 2026-09-14 — Ikki tilli tizim: O'zbekcha / Ruscha
+
+Endi har bir xodim **o'zi uchun tilni tanlaydi** va butun tizim o'sha tilga
+o'tadi — nafaqat interfeys, balki Telegram xabarlari va hisobotlar ham.
+
+### Foydalanuvchi nimani ko'radi
+
+1. **Birinchi kirishda** til tanlash oynasi chiqadi (O'zbekcha / Русский).
+2. Keyin sarlavhaning o'ng chetidagi **UZ / RU** tugmasi orqali tilni
+   istalgan paytda almashtirish mumkin — sahifa qayta yuklanmaydi.
+3. Tanlov **serverda saqlanadi** (`users.language`), shuning uchun boshqa
+   qurilmadan kirganda ham o'sha til ochiladi.
+
+### Nima tarjima qilindi
+
+| Bo'lim | Holati |
+|---|---|
+| Barcha ekranlar, tugmalar, filtrlar, bo'sh ro'yxat matnlari | ✅ |
+| Holat, muhimlik, lavozim nomlari | ✅ |
+| Server xato xabarlari (`X-Lang` header orqali) | ✅ |
+| Telegram bildirishnomalari — **har bir xodimga o'z tilida** | ✅ |
+| PDF va Excel eksport (ustunlar, sana formati, "Jami harajat") | ✅ |
+| Avtomatik haftalik/oylik hisobotlar (oy nomi ham) | ✅ |
+| Bot javoblari (`/start`, `/help`, `/app`) va buyruqlar ro'yxati | ✅ |
+
+Diqqatga sazovor jihat: bitta zayavka ochilganda **turli xodimlarga turli
+tilda** xabar boradi — direktorga o'zbekcha, bosh texnikka ruscha, chunki
+matn har bir qabul qiluvchining tiliga qarab quriladi.
+
+### Kategoriyalar (topshiriq turlari)
+
+Kategoriyalar endi **ikkita nomga** ega: o'zbekcha va ruscha. Superadmin
+ularni "Kategoriyalar" bo'limida kiritadi. Standart 7 ta kategoriyaning
+ruscha nomlari deploy paytida avtomatik to'ldiriladi. Ruscha nomi
+kiritilmagan kategoriya admin ro'yxatida "Ruscha nomi yo'q" belgisi bilan
+ko'rinadi va rus tilidagi foydalanuvchiga o'zbekcha nomi ko'rsatiladi.
+
+### Texnik o'zgarishlar
+
+- `users.language` (`uz` | `ru` | `null`) va `task_categories.label_ru`
+  ustunlari qo'shildi — `prisma db push` deploy paytida avtomatik qo'llaydi,
+  qo'lda migratsiya kerak emas, mavjud ma'lumot yo'qolmaydi.
+- `PATCH /api/users/me/language` — tilni saqlash endpointi.
+- Mini App har bir so'rovda `X-Lang: uz|ru` header yuboradi.
+- Tarjimalar: `apps/frontend/src/shared/i18n/{uz,ru}.ts` (interfeys),
+  `apps/backend/src/core/i18n/messages.ts` (xabar va hisobotlar),
+  `packages/shared-types/src/enums.ts` (holat/lavozim/muhimlik).
+- `ru.ts` `uz.ts`ning tipidan meros oladi: ruscha tarjimasi yozilmagan yangi
+  matn bo'lsa, loyiha kompilyatsiya bo'lmaydi — interfeys yarim tarjima
+  holatda qololmaydi.
+
+**Eski foydalanuvchilar uchun:** `language` ustuni bo'sh bo'lgani uchun ular
+keyingi kirishda bir marta til tanlash oynasini ko'radi.
+
+## 2026-09-14 — Railway xotira/CPU sarfini kamaytirish (audit)
+
+Railway'da oylik xarajat kutilganidan yuqori bo'lib chiqdi (Compute Usage
+limitiga yaqinlashgan). Metrics grafiklarini tekshirganda, `app` servisining
+RAM sarfi haftalar davomida **hech qachon pasaymay** ~150MB dan ~480MB gacha
+asta-sekin o'sib borgani aniqlandi. Audit natijasida topilgan va tuzatilgan
+muammolar:
+
+1. **Rasm siqish kodi (`media.service.ts`) eng katta sabab edi.** `sharp`
+   (libvips) kutubxonasi standart holatda dekodlangan rasmlarni ichki keshda
+   saqlaydi — bu kesh Node'ning V8 heap'idan tashqarida (native xotirada)
+   turadi va oddiy garbage collector uni tozalay olmaydi. Bizda har bir rasm
+   faqat bir marta siqilib, qayta ishlatilmaydi, shuning uchun bu kesh
+   foydasiz edi va faqat RSS xotirani asta-sekin oshirib borar edi.
+   → `sharp.cache(false)` va `sharp.concurrency(1)` qo'shildi; siqish
+   funksiyasi endi faylni diskdan faqat **bir marta** o'qiydi (oldin har
+   urinishda qayta o'qir edi).
+2. **`purgeOrphanFiles` cheklovsiz edi** — papkadagi barcha fayllarni va
+   bazadagi barcha rasmli zayavkalarni bir vaqtda xotiraga yuklardi. Vaqt
+   o'tib fayllar soni ko'paysa, bu funksiya har 6 soatda katta CPU/xotira
+   portlashiga olib kelishi mumkin edi. → 2000 tadan batch bilan ishlaydigan
+   qilindi.
+3. **Prisma connection pool** standart bo'yicha juda katta bo'lishi mumkin
+   edi (CPU soniga bog'liq). → `DATABASE_URL`ga avtomatik
+   `connection_limit=5` qo'shildi (`DB_CONNECTION_LIMIT` env orqali
+   sozlanadi).
+4. **Tarmoq (egress) xarajatini kamaytirish uchun** `compression`
+   middleware qo'shildi — JSON javoblar va statik fayllar endi gzip bilan
+   siqib yuboriladi.
+5. **Node xotira shifti** — Dockerfile'ga
+   `NODE_OPTIONS=--max-old-space-size=384` qo'shildi, bu V8'ni belgilangan
+   chegaradan oshib ketishdan saqlaydi va muntazam GC'ni majburlaydi.
+
+**Kutilayotgan natija:** keyingi deploy'dan so'ng RAM grafigi endi doimiy
+o'smasdan, past darajada (taxminan 150-250MB) barqaror turishi kerak.
+Buni tasdiqlash uchun deploy'dan 3-5 kun keyin Railway → Metrics → Memory
+grafigini qayta tekshiring.
+
 ## 2026-08-17 — Avtomatik haftalik va oylik PDF hisobotlar
 
 Tizim endi hisobotlarni **o'zi yuboradi** — hech kim tugma bosishi shart emas.

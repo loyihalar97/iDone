@@ -75,8 +75,9 @@ Bu sizning $5–10 byudjetingizga to'g'ri keladi. (Narxlar o'zgarishi mumkin —
    USE_WEBHOOK            = true
    NODE_ENV               = production
 
-   # ixtiyoriy — rasmlarni saqlash muddati (standart: 7 kun)
-   MEDIA_RETENTION_DAYS   = 7
+   # ixtiyoriy — rasm sozlamalari (standart qiymatlar bilan ishlaydi)
+   MEDIA_RETENTION_DAYS   = 0    # 0 = zayavka yopilgan zahoti o'chiriladi
+   MAX_IMAGE_KB           = 200  # har bir rasm shu hajmgacha siqiladi (0.2 MB)
 
    # ixtiyoriy — avtomatik hisobotlar (standart qiymatlar bilan ishlaydi)
    REPORT_WEEKLY_HOUR     = 7    # dushanba 07:00 (Toshkent vaqti)
@@ -148,21 +149,37 @@ Bu sizning $5–10 byudjetingizga to'g'ri keladi. (Narxlar o'zgarishi mumkin —
 - **Region.** Foydalanuvchilaringizga yaqin bitta region tanlang (ortiqcha
   replica/region qo'shmang).
 
-- **Disk hajmi (volume).** Zayavka yopilgandan so'ng rasmlar `MEDIA_RETENTION_DAYS`
-  kun (standart — **7 kun**) ilovada ko'rinib turadi, so'ng fon vazifasi ularni
-  diskdan va bazadan avtomatik tozalaydi. Rasmlar Telegram bot chatida esa
-  doimo saqlanib qoladi. Shu sababli volume hajmi faqat "ochiq + oxirgi bir
-  haftada yopilgan" zayavkalar hajmida turadi va o'smaydi.
+- **Disk hajmi (volume).** Zayavka **yopilgan zahoti** uning rasmlari diskdan
+  ham, bazadan ham darhol o'chiriladi (`MEDIA_RETENTION_DAYS=0` — standart).
+  Rasmlar Telegram bot chatida esa doimo saqlanib qoladi, chunki Telegram
+  ularni o'z serveriga yuklab olgan. Shu sababli volume hajmi faqat **ochiq**
+  zayavkalar hajmida turadi va o'smaydi.
 
   Sozlash uchun o'zgaruvchilar:
 
   | O'zgaruvchi | Standart | Ma'nosi |
   |---|---|---|
-  | `MEDIA_RETENTION_DAYS` | `7` | Yopilgandan keyin necha kun saqlanadi. `0` — darhol o'chirilsin, `-1` — hech qachon o'chirilmasin |
-  | `MEDIA_CLEANUP_INTERVAL_MINUTES` | `360` | Tozalash vazifasi necha daqiqada bir ishlaydi |
+  | `MEDIA_RETENTION_DAYS` | `0` | `0` — yopilgan zahoti o'chiriladi; `N` — N kundan keyin; `-1` — hech qachon |
+  | `MEDIA_CLEANUP_INTERVAL_MINUTES` | `720` | Fon tekshiruvi (yetim fayllar uchun) necha daqiqada bir ishlaydi |
+  | `MAX_IMAGE_KB` | `200` | Har bir rasm shu hajmdan kichik bo'lguncha siqiladi (0.2 MB) |
+  | `THUMBNAIL_WIDTH` | `320` | Ro'yxat kartalari uchun kichik nusxa kengligi (px). `0` — yaratilmasin |
+  | `MAX_UPLOAD_MB` | `15` | Siqishdan oldingi maksimal fayl hajmi |
 
   Vazifa bir vaqtning o'zida "yetim" fayllarni ham (rasm yuklanib, zayavka
   yuborilmagan holatlar) 24 soatdan keyin o'chiradi.
+
+- **Rasm hajmi va trafik.** Har bir rasm yuklanganda:
+  1. **0.2 MB gacha siqiladi** (1280 px kenglik, JPEG) — 5 MB lik telefon
+     surati odatda ~100–200 KB ga tushadi;
+  2. ro'yxat kartalari uchun **kichik nusxa** (`*_thumb.jpg`, ~20 KB)
+     yaratiladi.
+
+  Zayavkalar ro'yxatida brauzer to'liq rasmni emas, shu kichik nusxani
+  yuklaydi. 100 ta zayavkali sahifada bu ~50 MB o'rniga ~2 MB trafik degani.
+
+- **Kesh sarlavhalari (egress).** Rasmlar 30 kun, frontend fayllari (hash'li
+  nomlar bilan) 1 yil keshlanadi. Ilovani ikkinchi marta ochganda brauzer
+  ularni qaytadan yuklab olmaydi — chiquvchi trafik keskin kamayadi.
 
 - **Byudjet limiti.** Railway'da Usage → Limits orqali oylik "hard limit"
   (masalan $10) qo'ying — kutilmagan xarajatning oldini oladi.

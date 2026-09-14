@@ -4,6 +4,14 @@ Base URL: `{BACKEND_URL}/api`
 
 Autentifikatsiya: `Authorization: Bearer <JWT>` header orqali (login endpointidan tashqari barcha endpointlar uchun majburiy).
 
+Til: har bir so'rovda `X-Lang: uz | ru` header yuboriladi (Mini App buni avtomatik qo'shadi).
+Server shu tilda **xato xabarlarini**, **kategoriya nomlarini** va **status/muhimlik yorliqlarini**
+qaytaradi. Header bo'lmasa `Accept-Language`, u ham bo'lmasa o'zbekcha ishlatiladi.
+
+Foydalanuvchining doimiy tili `users.language` ustunida saqlanadi
+(`PATCH /users/me/language`) — Telegram bildirishnomalari va avtomatik PDF hisobotlar
+**aynan shu tilda** yuboriladi (X-Lang emas, chunki ular so'rovdan tashqarida yuboriladi).
+
 ---
 
 ## Auth
@@ -12,8 +20,9 @@ Autentifikatsiya: `Authorization: Bearer <JWT>` header orqali (login endpointida
 Telegram Mini App `initData`si orqali kirish. Foydalanuvchi bazada bo'lmasa, `isActive: false` holatida yaratiladi (superadmin faollashtirishi kerak).
 
 **Body:** `{ "initData": "query_id=...&user=...&hash=..." }`
-**Response:** `{ "token": "jwt...", "user": { id, fullName, role, branchId, branchName, managedBranches, isActive } }`
+**Response:** `{ "token": "jwt...", "user": { id, fullName, role, branchId, branchName, managedBranches, isActive, language } }`
 > `managedBranches` — Hududiy rahbarga biriktirilgan filiallar: `[{ id, name }]`.
+> `language` — `"uz" | "ru" | null`. `null` bo'lsa Mini App birinchi kirishda til tanlash oynasini ko'rsatadi.
 
 ### `GET /auth/me`
 Joriy foydalanuvchi ma'lumotlari.
@@ -112,6 +121,8 @@ Zayavkalarning drag-and-drop tartibini saqlaydi (`sortOrder`). Ro'yxatlar `sortO
 ### `GET /requests/export?format=pdf|xlsx` — barcha rollar
 Query: `format` (majburiy) + `GET /requests` filtrlari. Rol doirasidagi tarixni PDF yoki XLSX
 faylga eksport qilib, so'rov yuborgan foydalanuvchining **Telegram bot chatiga hujjat** sifatida yuboradi.
+Fayl **foydalanuvchi tanlagan tilda** tayyorlanadi: ustun sarlavhalari, holat/muhimlik/lavozim
+nomlari, sana formati va "Jami harajat" qatori.
 **Response:** `{ "success": true, "count": 42 }`
 
 ### `DELETE /requests/:id` — Superadmin
@@ -124,8 +135,24 @@ bildirishnomalar `SET NULL` orqali tozalanadi; rasm fayllari o'chiriladi.
 ## Media
 
 ### `POST /media/upload`
-`multipart/form-data`, field nomi: `file`. Ruxsat etilgan: jpg/png/webp/mp4/mov, maksimal 25MB.
-**Response:** `{ "url": "https://..." }`
+`multipart/form-data`, field nomi: `file`. Ruxsat etilgan: jpg/png/webp/mp4/mov,
+maksimal `MAX_UPLOAD_MB` (standart **15 MB**) — bu siqishdan OLDINGI chegara.
+
+Server rasmni qabul qilgach:
+1. hajmi `MAX_IMAGE_KB` dan (standart **200 KB** = 0.2 MB) katta bo'lsa yoki
+   kengligi 1280 px dan oshsa — JPEG'ga o'tkazib siqadi;
+2. ro'yxat kartalari uchun kichik nusxa yaratadi va uni asosiy rasm yonida
+   `<nom>_thumb.jpg` sifatida saqlaydi (`THUMBNAIL_WIDTH`, standart 320 px).
+
+**Response:** `{ "url": "https://.../uploads/<nom>.jpg" }`
+
+> Kichik nusxa URL'i javobda alohida qaytmaydi — u asosiy URL'dan hisoblab
+> olinadi: `.../abc.jpg` → `.../abc_thumb.jpg`. Frontend ro'yxatda shu
+> manzilni ishlatadi, u topilmasa (eski rasmlar) to'liq rasmga qaytadi.
+
+> **Rasmning umri:** zayavka yopilgan zahoti rasm ham diskdan, ham bazadan
+> o'chiriladi (`MEDIA_RETENTION_DAYS=0` — standart). Rasmlar Telegram bot
+> chatida saqlanib qolaveradi.
 
 ---
 
@@ -148,18 +175,23 @@ bildirishnomalar `SET NULL` orqali tozalanadi; rasm fayllari o'chiriladi.
   - **Hududiy rahbar** uchun `branchIds` (kamida bitta filial) majburiy — `user_branches` jadvaliga yoziladi
   - Texnikda `branchId: null` = **barcha filiallar**
   - Bosh texniklar soni **cheklanmagan**
+- `PATCH /users/me/language` — **barcha rollar** — `{ language: "uz" | "ru" }`
+  - Foydalanuvchining o'z tilini saqlaydi va yangilangan profilni qaytaradi
+  - Shu tanlov interfeys, Telegram bildirishnomalari va PDF/Excel hisobotlar uchun ishlatiladi
 - `PATCH /users/:id/active` — Superadmin — `{ isActive }`
 - `DELETE /users/:id` — Superadmin — yaratgan zayavkasi/audit tarixi bo'lsa xato qaytadi (faolsizlantiring)
 
 ## Categories (kategoriyalar — DB-backed, Superadmin boshqaradi)
 
-- `GET /categories` — faol kategoriyalar `[{ value, label }]`
-- `GET /categories/manage` — Superadmin — to'liq ro'yxat `[{ id, key, label, isActive, sortOrder }]`
-- `POST /categories` — Superadmin — `{ label, key? }`
-- `PATCH /categories/:id` — Superadmin — `{ label?, isActive?, sortOrder? }`
+- `GET /categories` — faol kategoriyalar `[{ value, label }]` — `label` **so'rov tilida** (`X-Lang`)
+- `GET /categories/manage` — Superadmin — to'liq ro'yxat `[{ id, key, label, labelRu, isActive, sortOrder }]`
+- `POST /categories` — Superadmin — `{ label, labelRu?, key? }` (`label` — o'zbekcha, `labelRu` — ruscha)
+- `PATCH /categories/:id` — Superadmin — `{ label?, labelRu?, isActive?, sortOrder? }`
 - `DELETE /categories/:id` — Superadmin — ishlatilayotgan bo'lsa xato qaytadi (faolsizlantiring)
-- `GET /categories/priorities` — statik ma'lumotnoma
-- `GET /categories/statuses` — statik ma'lumotnoma
+- `GET /categories/priorities` — muhimlik yorliqlari **so'rov tilida**
+- `GET /categories/statuses` — holat yorliqlari **so'rov tilida**
+
+> `labelRu` bo'sh bo'lsa, rus tilidagi foydalanuvchiga o'zbekcha nomi ko'rsatiladi.
 
 ## Dashboard
 
@@ -176,6 +208,11 @@ Har bir qabul qiluvchi o'zining ko'rish doirasidagi ma'lumotni oladi
 (Superadmin — barcha filiallar, Hududiy rahbar — biriktirilgan filiallari,
 Direktor — o'z filiali). Davrda zayavka bo'lmasa PDF o'rniga qisqa matnli
 xabar yuboriladi.
+
+Hisobot **har bir xodimga o'zi tanlagan tilda** (`users.language`) tayyorlanadi:
+PDF sarlavhasi, ustunlar, holat/lavozim nomlari, oy nomi va xabar matni
+o'sha tilda bo'ladi. Bitta davrda bir xodim o'zbekcha, boshqasi ruscha
+hisobot olishi mumkin.
 
 Takroriy yuborilmasligi `audit_logs` orqali kafolatlanadi: har bir
 (foydalanuvchi + davr) juftligi uchun bitta yozuv (`entityType: "report"`,
