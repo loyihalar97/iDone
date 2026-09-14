@@ -1,4 +1,5 @@
-import { Priority, RequestStatus, PRIORITY_LABELS_UZ, STATUS_LABELS_UZ } from "@app/shared-types";
+import { Priority, RequestStatus } from "@app/shared-types";
+import { useI18n } from "@/shared/i18n";
 
 const PRIORITY_DOT: Record<Priority, string> = {
   [Priority.LOW]: "bg-priority-low",
@@ -37,23 +38,25 @@ function Dot({ className }: { className: string }) {
 }
 
 export function PriorityBadge({ priority }: { priority: Priority }) {
+  const { priorityText } = useI18n();
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-bold ${PRIORITY_TINT[priority]}`}
     >
       <Dot className={PRIORITY_DOT[priority]} />
-      {PRIORITY_LABELS_UZ[priority]}
+      {priorityText(priority)}
     </span>
   );
 }
 
 export function StatusBadge({ status }: { status: RequestStatus }) {
+  const { statusText } = useI18n();
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-bold ${STATUS_TINT[status]}`}
     >
       <Dot className={STATUS_DOT[status]} />
-      {STATUS_LABELS_UZ[status]}
+      {statusText(status)}
     </span>
   );
 }

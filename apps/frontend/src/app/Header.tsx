@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import { LanguageSwitch } from "@/shared/ui/LanguageSwitch";
 
 export function Header({ title, showBack = false }: { title: string; showBack?: boolean }) {
   const navigate = useNavigate();
@@ -13,7 +14,9 @@ export function Header({ title, showBack = false }: { title: string; showBack?: 
           <ArrowLeft size={17} strokeWidth={2.25} />
         </button>
       )}
-      <h1 className="font-extrabold text-tg-text text-[19px] tracking-tight2">{title}</h1>
+      <h1 className="font-extrabold text-tg-text text-[19px] tracking-tight2 truncate">{title}</h1>
+      {/* Til almashtirgichi — har bir ekranda qo'l ostida turadi. */}
+      <LanguageSwitch />
     </header>
   );
 }

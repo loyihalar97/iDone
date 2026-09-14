@@ -4,9 +4,11 @@ import { RequestStatus } from "@app/shared-types";
 import { requestsApi } from "@/shared/api/requests";
 import { RequestList } from "@/features/requests/RequestList";
 import { Button } from "@/shared/ui/primitives";
+import { useI18n } from "@/shared/i18n";
 import { Plus, Inbox } from "lucide-react";
 
 export function DirectorRequestsPage() {
+  const { t } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ["requests", "director"],
     queryFn: () => requestsApi.list({ pageSize: 100 }).then((r) => r.data),
@@ -19,14 +21,14 @@ export function DirectorRequestsPage() {
       <RequestList
         items={openItems}
         isLoading={isLoading}
-        emptyTitle="Ochiq zayavkalar yo'q"
-        emptySubtitle="Yangi texnik muammo bo'lsa, pastdagi tugma orqali zayavka yarating"
+        emptyTitle={t.request.emptyOpenTitle}
+        emptySubtitle={t.request.emptyOpenSubtitleDirector}
         emptyIcon={Inbox}
       />
       <div className="px-4 pb-4">
         <Link to="/director/new">
           <Button icon={Plus} className="w-full !text-base !py-3.5">
-            Yangi zayavka
+            {t.request.newRequestButton}
           </Button>
         </Link>
       </div>

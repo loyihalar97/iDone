@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { dashboardApi } from "@/shared/api";
 import { Card, Spinner } from "@/shared/ui/primitives";
 import { LucideIcon, Inbox, Clock, CheckCircle2, CalendarCheck, Timer } from "lucide-react";
+import { useI18n } from "@/shared/i18n";
 
 function StatCard({
   label,
@@ -26,26 +27,37 @@ function StatCard({
 }
 
 export function SuperadminDashboardPage() {
+  const { t } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: () => dashboardApi.stats().then((r) => r.data),
   });
 
-  if (isLoading || !data) return <Spinner label="Statistika yuklanmoqda..." />;
+  if (isLoading || !data) return <Spinner label={t.dashboard.loading} />;
 
   return (
     <div className="px-4 pt-2 pb-8 space-y-3">
       <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Ochiq zayavkalar" value={data.openCount} icon={Inbox} tint="bg-accentSoft text-accent" />
-        <StatCard label="Jarayonda" value={data.inProgressCount} icon={Clock} tint="bg-status-progress/10 text-status-progress" />
         <StatCard
-          label="Bugun yopilgan"
+          label={t.dashboard.openRequests}
+          value={data.openCount}
+          icon={Inbox}
+          tint="bg-accentSoft text-accent"
+        />
+        <StatCard
+          label={t.dashboard.inProgress}
+          value={data.inProgressCount}
+          icon={Clock}
+          tint="bg-status-progress/10 text-status-progress"
+        />
+        <StatCard
+          label={t.dashboard.closedToday}
           value={data.closedTodayCount}
           icon={CheckCircle2}
           tint="bg-status-directorAccepted/10 text-status-directorAccepted"
         />
         <StatCard
-          label="Oy davomida yopilgan"
+          label={t.dashboard.closedThisMonth}
           value={data.closedThisMonthCount}
           icon={CalendarCheck}
           tint="bg-inkFaint/10 text-inkFaint"
@@ -58,15 +70,17 @@ export function SuperadminDashboardPage() {
         </div>
         <div>
           <p className="font-num text-[22px] font-semibold text-tg-text leading-none">
-            {data.avgResolutionHours} soat
+            {data.avgResolutionHours} {t.dashboard.hours}
           </p>
-          <p className="text-[12px] font-semibold text-tg-hint mt-1">O'rtacha bajarilish vaqti</p>
+          <p className="text-[12px] font-semibold text-tg-hint mt-1">
+            {t.dashboard.avgResolution}
+          </p>
         </div>
       </Card>
 
       {data.topBranchesByRequests.length > 0 && (
         <Card>
-          <p className="font-extrabold text-tg-text text-[13px] mb-3">Eng ko'p muammo kelayotgan filiallar</p>
+          <p className="font-extrabold text-tg-text text-[13px] mb-3">{t.dashboard.topBranches}</p>
           <div>
             {(() => {
               const max = Math.max(...data.topBranchesByRequests.map((b) => b.count));
@@ -96,7 +110,9 @@ export function SuperadminDashboardPage() {
 
       {data.busiestTechnicians.length > 0 && (
         <Card>
-          <p className="font-extrabold text-tg-text text-[13px] mb-3">Eng band texniklar</p>
+          <p className="font-extrabold text-tg-text text-[13px] mb-3">
+            {t.dashboard.busiestTechnicians}
+          </p>
           <div>
             {(() => {
               const max = Math.max(...data.busiestTechnicians.map((t) => t.count));

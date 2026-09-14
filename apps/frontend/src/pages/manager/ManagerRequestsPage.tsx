@@ -9,6 +9,7 @@ import { ExportButtons } from "@/features/requests/ExportButtons";
 import { Button } from "@/shared/ui/primitives";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { Inbox, Plus } from "lucide-react";
+import { useI18n } from "@/shared/i18n";
 
 /**
  * Rahbar / Hududiy rahbar / Filial menejeri uchun ochiq zayavkalar ro'yxati.
@@ -19,6 +20,7 @@ import { Inbox, Plus } from "lucide-react";
  */
 export function ManagerRequestsPage() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [filters, setFilters] = useState<RequestFilters>({ pageSize: 100 });
 
   const { data, isLoading } = useQuery({
@@ -39,14 +41,14 @@ export function ManagerRequestsPage() {
       <RequestList
         items={openItems}
         isLoading={isLoading}
-        emptyTitle="Ochiq zayavkalar yo'q"
-        emptySubtitle="Filtrlarni o'zgartirib ko'ring yoki yangi zayavka oching"
+        emptyTitle={t.request.emptyOpenTitle}
+        emptySubtitle={t.request.emptyOpenSubtitleManager}
         emptyIcon={Inbox}
       />
       <div className="px-4 pb-4">
         <Link to="/manager/new">
           <Button icon={Plus} className="w-full !text-base !py-3.5">
-            Yangi zayavka
+            {t.request.newRequestButton}
           </Button>
         </Link>
       </div>

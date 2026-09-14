@@ -8,6 +8,17 @@ export const apiClient = axios.create({
 
 const TOKEN_KEY = "auth_token";
 
+/**
+ * Joriy interfeys tili — har bir so'rovga `X-Lang` sarlavhasi bilan
+ * qo'shiladi. Server shu tilda xato xabarlarini, kategoriya nomlarini va
+ * status/muhimlik yorliqlarini qaytaradi.
+ */
+let currentLanguage = "uz";
+
+export function setApiLanguage(lang: string) {
+  currentLanguage = lang;
+}
+
 export function setAuthToken(token: string) {
   sessionStorage.setItem(TOKEN_KEY, token);
 }
@@ -25,6 +36,7 @@ apiClient.interceptors.request.use((cfg) => {
   if (token) {
     cfg.headers.Authorization = `Bearer ${token}`;
   }
+  cfg.headers["X-Lang"] = currentLanguage;
   return cfg;
 });
 

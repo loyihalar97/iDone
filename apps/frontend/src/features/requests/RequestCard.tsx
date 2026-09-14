@@ -2,23 +2,28 @@ import { RequestItem } from "@/shared/api/requests";
 import { Thumb } from "@/shared/ui/primitives";
 import { PriorityBadge, StatusBadge, priorityBarClass } from "@/shared/ui/Badges";
 import { useCategoryLabels } from "@/shared/hooks/useCategories";
+import { Dictionary, localeOf, useI18n } from "@/shared/i18n";
+import { thumbUrl } from "@/shared/lib/media";
+import { Language } from "@app/shared-types";
 import { Link } from "react-router-dom";
 import { User, ImageIcon, AlertTriangle } from "lucide-react";
 
-function relativeTime(iso: string): string {
+/** "3 soat oldin" / "3 ч. назад" ko'rinishidagi nisbiy vaqt. */
+function relativeTime(iso: string, t: Dictionary, lang: Language): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 60) return minutes <= 1 ? "hozir" : `${minutes} daqiqa oldin`;
+  if (minutes < 60) return minutes <= 1 ? t.time.justNow : t.time.minutesAgo(minutes);
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} soat oldin`;
+  if (hours < 24) return t.time.hoursAgo(hours);
   const days = Math.floor(hours / 24);
-  if (days === 1) return "kecha";
-  if (days < 30) return `${days} kun oldin`;
-  return new Date(iso).toLocaleDateString("uz-UZ", { day: "numeric", month: "short" });
+  if (days === 1) return t.time.yesterday;
+  if (days < 30) return t.time.daysAgo(days);
+  return new Date(iso).toLocaleDateString(localeOf(lang), { day: "numeric", month: "short" });
 }
 
 export function RequestCard({ request }: { request: RequestItem }) {
   const { labelFor } = useCategoryLabels();
+  const { t, lang } = useI18n();
   // Bosh texnik "bajarish imkonsiz" izohini yozganini ro'yxatda ham ko'rsatamiz.
   const hasBlocker = (request.comments ?? []).some((c) => c.isBlocker);
   return (
@@ -40,7 +45,10 @@ export function RequestCard({ request }: { request: RequestItem }) {
           </div>
           {request.beforePhotoUrl ? (
             <Thumb
-              src={request.beforePhotoUrl}
+              // Ro'yxatda kichik nusxa yuklanadi (~20 KB), to'liq rasm emas.
+              src={thumbUrl(request.beforePhotoUrl)}
+              fallbackSrc={request.beforePhotoUrl}
+              loading="lazy"
               className="w-10 h-10 rounded-[10px] object-cover flex-shrink-0"
             />
           ) : (
@@ -55,7 +63,7 @@ export function RequestCard({ request }: { request: RequestItem }) {
           {hasBlocker && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-priority-critical/10 text-priority-critical text-[10.5px] font-bold">
               <AlertTriangle size={10} strokeWidth={2.5} />
-              Izoh bor
+              {t.request.hasComment}
             </span>
           )}
           {request.technician ? (
@@ -64,7 +72,9 @@ export function RequestCard({ request }: { request: RequestItem }) {
               {request.technician.fullName}
             </span>
           ) : (
-            <span className="font-num text-[10.5px] text-inkFaint ml-auto">{relativeTime(request.createdAt)}</span>
+            <span className="font-num text-[10.5px] text-inkFaint ml-auto">
+              {relativeTime(request.createdAt, t, lang)}
+            </span>
           )}
         </div>
       </div>

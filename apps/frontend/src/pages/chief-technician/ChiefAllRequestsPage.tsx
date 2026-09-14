@@ -24,9 +24,11 @@ import { ExportButtons } from "@/features/requests/ExportButtons";
 import { Spinner, EmptyState } from "@/shared/ui/primitives";
 import { telegram } from "@/shared/telegram/webapp";
 import { Inbox, GripVertical, ArrowDownUp, Check } from "lucide-react";
+import { useI18n } from "@/shared/i18n";
 
 /** Tartiblash rejimidagi bitta sudraladigan qator. */
 function SortableRow({ request }: { request: RequestItem }) {
+  const { t } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: request.id,
   });
@@ -41,7 +43,7 @@ function SortableRow({ request }: { request: RequestItem }) {
         {...attributes}
         {...listeners}
         className="touch-none flex-shrink-0 p-2 -ml-1 text-inkFaint active:text-accent cursor-grab"
-        aria-label="Sudrab tartiblash"
+        aria-label={t.chief.sortHandle}
       >
         <GripVertical size={18} strokeWidth={2} />
       </span>
@@ -54,6 +56,7 @@ function SortableRow({ request }: { request: RequestItem }) {
 }
 
 export function ChiefAllRequestsPage() {
+  const { t } = useI18n();
   const [filters, setFilters] = useState<RequestFilters>({ pageSize: 50 });
   const [sortMode, setSortMode] = useState(false);
   const [ordered, setOrdered] = useState<RequestItem[]>([]);
@@ -68,7 +71,7 @@ export function ChiefAllRequestsPage() {
     mutationFn: (orderedIds: string[]) => requestsApi.reorder(orderedIds),
     onError: () => {
       telegram.HapticFeedback.notificationOccurred("error");
-      telegram.showAlert("Tartibni saqlab bo'lmadi. Qayta urinib ko'ring.");
+      telegram.showAlert(t.chief.sortFailed);
     },
   });
 
@@ -106,18 +109,16 @@ export function ChiefAllRequestsPage() {
     return (
       <div className="pt-3 pb-8">
         <div className="px-4 mb-3 flex items-center justify-between gap-2">
-          <p className="text-[12.5px] text-tg-hint leading-snug flex-1">
-            Zayavkalarni tutqichdan ushlab sudrang — ish ketma-ketligi avtomatik saqlanadi.
-          </p>
+          <p className="text-[12.5px] text-tg-hint leading-snug flex-1">{t.chief.sortHint}</p>
           <button
             onClick={exitSortMode}
             className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-control bg-accent text-white text-[12.5px] font-bold active:opacity-80"
           >
-            <Check size={15} strokeWidth={2.5} /> Tayyor
+            <Check size={15} strokeWidth={2.5} /> {t.common.ready}
           </button>
         </div>
         {ordered.length === 0 ? (
-          <EmptyState title="Tartiblash uchun ochiq zayavka yo'q" icon={Inbox} />
+          <EmptyState title={t.chief.sortEmpty} icon={Inbox} />
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={ordered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
@@ -142,18 +143,18 @@ export function ChiefAllRequestsPage() {
           disabled={isLoading}
           className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-control border-[1.5px] border-lineStrong text-[12.5px] font-bold text-inkSoft active:opacity-70 disabled:opacity-50"
         >
-          <ArrowDownUp size={15} strokeWidth={2} /> Ish ketma-ketligini tartiblash
+          <ArrowDownUp size={15} strokeWidth={2} /> {t.chief.sortButton}
         </button>
       </div>
       <ExportButtons filters={filters} />
       {isLoading ? (
-        <Spinner label="Yuklanmoqda..." />
+        <Spinner label={t.common.loading} />
       ) : (
         <RequestList
           items={data?.items}
           isLoading={isLoading}
-          emptyTitle="Zayavkalar topilmadi"
-          emptySubtitle="Filtrlarni o'zgartirib ko'ring"
+          emptyTitle={t.request.emptyNotFound}
+          emptySubtitle={t.request.emptyChangeFilters}
           emptyIcon={Inbox}
         />
       )}

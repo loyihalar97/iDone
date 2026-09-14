@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Priority, PRIORITY_LABELS_UZ, Role } from "@app/shared-types";
+import { Priority, Role } from "@app/shared-types";
 import { requestsApi, mediaApi } from "@/shared/api/requests";
 import { branchesApi } from "@/shared/api";
 import { useCategoryOptions } from "@/shared/hooks/useCategories";
@@ -9,6 +9,7 @@ import { Button, Card, EmptyState, Label, Select, Textarea, Thumb } from "@/shar
 import { telegram } from "@/shared/telegram/webapp";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { HOME_BY_ROLE, needsBranchPicker } from "@/shared/lib/roles";
+import { useI18n } from "@/shared/i18n";
 import { Camera, Send, Building2 } from "lucide-react";
 
 const PRIORITY_ACTIVE_STYLE: Record<Priority, string> = {
@@ -18,8 +19,16 @@ const PRIORITY_ACTIVE_STYLE: Record<Priority, string> = {
   [Priority.CRITICAL]: "border-priority-critical bg-priority-critical/10 text-priority-critical",
 };
 
+const PRIORITY_ORDER: Priority[] = [
+  Priority.LOW,
+  Priority.MEDIUM,
+  Priority.HIGH,
+  Priority.CRITICAL,
+];
+
 export function NewRequestForm() {
   const { user } = useAuth();
+  const { t, priorityText } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -67,7 +76,7 @@ export function NewRequestForm() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!file) throw new Error("Muammo rasmi majburiy");
+      if (!file) throw new Error(t.newRequest.photoRequired);
 
       const { data: uploaded } = await mediaApi.upload(file);
       // Direktor/Filial menejeri uchun filial serverda profildan olinadi.
@@ -86,7 +95,7 @@ export function NewRequestForm() {
     },
     onError: (err: any) => {
       telegram.HapticFeedback.notificationOccurred("error");
-      setSubmitError(err?.response?.data?.error?.message ?? err.message ?? "Xatolik yuz berdi");
+      setSubmitError(err?.response?.data?.error?.message ?? err.message ?? t.common.error);
     },
   });
 
@@ -105,8 +114,8 @@ export function NewRequestForm() {
   if (!showBranchPicker && !user?.branchId) {
     return (
       <EmptyState
-        title="Sizga filial biriktirilmagan"
-        subtitle="Zayavka ochish uchun Superadmin sizga filial biriktirishi kerak. Administratorga murojaat qiling."
+        title={t.newRequest.noBranchTitle}
+        subtitle={t.newRequest.noBranchSubtitle}
         icon={Building2}
       />
     );
@@ -116,8 +125,8 @@ export function NewRequestForm() {
   if (showBranchPicker && user?.role === Role.REGIONAL_MANAGER && branchOptions.length === 0) {
     return (
       <EmptyState
-        title="Sizga filiallar biriktirilmagan"
-        subtitle="Hududingizdagi filiallarni Superadmin biriktirishi kerak. Administratorga murojaat qiling."
+        title={t.newRequest.noBranchesTitle}
+        subtitle={t.newRequest.noBranchesSubtitle}
         icon={Building2}
       />
     );
@@ -127,9 +136,11 @@ export function NewRequestForm() {
     <div className="px-4 pb-8 pt-2 space-y-3">
       {showBranchPicker && (
         <Card>
-          <Label>Filial</Label>
+          <Label>{t.newRequest.branch}</Label>
           <Select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-            {branchOptions.length === 0 && <option value="">Filial topilmadi</option>}
+            {branchOptions.length === 0 && (
+              <option value="">{t.newRequest.branchNotFound}</option>
+            )}
             {branchOptions.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -140,7 +151,7 @@ export function NewRequestForm() {
       )}
 
       <Card>
-        <Label>Muammo kategoriyasi</Label>
+        <Label>{t.newRequest.category}</Label>
         <Select value={category} onChange={(e) => setCategory(e.target.value)}>
           {(categories ?? []).map((c) => (
             <option key={c.value} value={c.value}>
@@ -151,29 +162,29 @@ export function NewRequestForm() {
       </Card>
 
       <Card>
-        <Label>Muammo tavsifi</Label>
+        <Label>{t.newRequest.description}</Label>
         <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
-          placeholder="Muammoni batafsil yozing..."
+          placeholder={t.newRequest.descriptionPlaceholder}
         />
       </Card>
 
       <Card>
-        <Label>Muhimlik darajasi</Label>
+        <Label>{t.newRequest.priority}</Label>
         <div className="grid grid-cols-4 gap-2">
-          {Object.entries(PRIORITY_LABELS_UZ).map(([value, label]) => {
+          {PRIORITY_ORDER.map((value) => {
             const isActive = priority === value;
             return (
               <button
                 key={value}
-                onClick={() => setPriority(value as Priority)}
+                onClick={() => setPriority(value)}
                 className={`py-2.5 rounded-control text-[12.5px] font-bold border-[1.5px] transition ${
-                  isActive ? PRIORITY_ACTIVE_STYLE[value as Priority] : "border-lineStrong text-inkSoft"
+                  isActive ? PRIORITY_ACTIVE_STYLE[value] : "border-lineStrong text-inkSoft"
                 }`}
               >
-                {label}
+                {priorityText(value)}
               </button>
             );
           })}
@@ -181,10 +192,10 @@ export function NewRequestForm() {
       </Card>
 
       <Card>
-        <Label>Muammo rasmi (majburiy)</Label>
+        <Label>{t.newRequest.photo}</Label>
         <label className="flex flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-lineStrong rounded-control px-3 py-6 text-center text-[12.5px] font-semibold text-inkFaint cursor-pointer">
           <Camera size={20} strokeWidth={1.75} />
-          {file ? file.name : "Rasm yoki video tanlang"}
+          {file ? file.name : t.newRequest.pickFile}
           <input
             type="file"
             accept="image/*,video/*"
@@ -194,7 +205,11 @@ export function NewRequestForm() {
           />
         </label>
         {preview && (
-          <Thumb src={preview} alt="Oldindan ko'rish" className="mt-3 w-full h-40 object-cover rounded-control" />
+          <Thumb
+            src={preview}
+            alt={t.newRequest.preview}
+            className="mt-3 w-full h-40 object-cover rounded-control"
+          />
         )}
       </Card>
 
@@ -206,7 +221,7 @@ export function NewRequestForm() {
         disabled={!isValid || createMutation.isPending}
         onClick={() => createMutation.mutate()}
       >
-        {createMutation.isPending ? "Yuborilmoqda..." : "Yuborish"}
+        {createMutation.isPending ? t.common.sending : t.newRequest.submit}
       </Button>
     </div>
   );

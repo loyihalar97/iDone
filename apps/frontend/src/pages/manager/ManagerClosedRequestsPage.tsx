@@ -7,6 +7,7 @@ import { RequestFiltersBar } from "@/features/requests/RequestFilters";
 import { ExportButtons } from "@/features/requests/ExportButtons";
 import { useAuth } from "@/shared/hooks/useAuth";
 import { CheckCircle2 } from "lucide-react";
+import { useI18n } from "@/shared/i18n";
 
 /**
  * Yopilgan zayavkalar tarixi + PDF/XLSX hisobot yuklab olish.
@@ -14,6 +15,7 @@ import { CheckCircle2 } from "lucide-react";
  */
 export function ManagerClosedRequestsPage() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [filters, setFilters] = useState<RequestFilters>({
     status: RequestStatus.CLOSED,
     pageSize: 100,
@@ -35,8 +37,8 @@ export function ManagerClosedRequestsPage() {
       <RequestList
         items={data?.items}
         isLoading={isLoading}
-        emptyTitle="Zayavkalar topilmadi"
-        emptySubtitle="Filtrlarni o'zgartirib ko'ring"
+        emptyTitle={t.request.emptyNotFound}
+        emptySubtitle={t.request.emptyChangeFilters}
         emptyIcon={CheckCircle2}
       />
     </div>

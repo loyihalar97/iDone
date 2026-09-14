@@ -5,8 +5,10 @@ import { RequestList } from "@/features/requests/RequestList";
 import { RequestFiltersBar } from "@/features/requests/RequestFilters";
 import { telegram, confirmDialog } from "@/shared/telegram/webapp";
 import { Inbox } from "lucide-react";
+import { useI18n } from "@/shared/i18n";
 
 export function SuperadminRequestsPage() {
+  const { t } = useI18n();
   const [filters, setFilters] = useState<RequestFilters>({ pageSize: 50 });
   const queryClient = useQueryClient();
 
@@ -25,9 +27,7 @@ export function SuperadminRequestsPage() {
   });
 
   async function handleDelete(request: RequestItem) {
-    const ok = await confirmDialog(
-      `"${request.branch.name}" zayavkasini butunlay o'chirasizmi? Bu amalni ortga qaytarib bo'lmaydi.`
-    );
+    const ok = await confirmDialog(t.request.deleteConfirm(request.branch.name));
     if (ok) deleteMutation.mutate(request.id);
   }
 
@@ -37,7 +37,7 @@ export function SuperadminRequestsPage() {
       <RequestList
         items={data?.items}
         isLoading={isLoading}
-        emptyTitle="Zayavkalar topilmadi"
+        emptyTitle={t.request.emptyNotFound}
         emptyIcon={Inbox}
         onDelete={handleDelete}
       />

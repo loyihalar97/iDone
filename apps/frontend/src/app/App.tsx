@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Role } from "@app/shared-types";
 import { useAuth } from "@/shared/hooks/useAuth";
+import { useI18n, Dictionary } from "@/shared/i18n";
+import { LanguagePicker } from "@/shared/ui/LanguageSwitch";
 import { Spinner, Button } from "@/shared/ui/primitives";
 import { BottomNav } from "./BottomNav";
 import { Header } from "./Header";
@@ -23,33 +25,39 @@ import { SuperadminCategoriesPage } from "@/pages/superadmin/SuperadminCategorie
 import { SuperadminRequestsPage } from "@/pages/superadmin/SuperadminRequestsPage";
 import { RequestDetailPage } from "@/features/requests/RequestDetailPage";
 
-const TITLES: Record<string, string> = {
-  "/director/requests": "Ochiq zayavkalar",
-  "/director/closed": "Tugatilgan zayavkalar",
-  "/director/stats": "Statistika",
-  "/director/new": "Yangi zayavka",
-  "/chief/requests": "Barcha zayavkalar",
-  "/chief/technicians": "Texniklar nazorati",
-  "/chief/dashboard": "Statistika",
-  "/technician/requests": "Ochiq ishlar",
-  "/technician/closed": "Tugatilgan ishlar",
-  "/technician/stats": "Statistika",
-  "/manager/requests": "Ochiq zayavkalar",
-  "/manager/closed": "Tarix va hisobotlar",
-  "/manager/new": "Yangi zayavka",
-  "/manager/technicians": "Texniklar nazorati",
-  "/manager/stats": "Statistika",
-  "/superadmin/requests": "Barcha zayavkalar",
-  "/superadmin/dashboard": "Statistika",
-  "/superadmin/users": "Foydalanuvchilar",
-  "/superadmin/branches": "Filiallar",
-  "/superadmin/categories": "Kategoriyalar",
-};
+/** Sahifa sarlavhalari — tanlangan tildagi lug'atdan olinadi. */
+function pageTitles(t: Dictionary): Record<string, string> {
+  return {
+    "/director/requests": t.titles.directorRequests,
+    "/director/closed": t.titles.directorClosed,
+    "/director/stats": t.titles.stats,
+    "/director/new": t.titles.newRequest,
+    "/chief/requests": t.titles.chiefRequests,
+    "/chief/technicians": t.titles.chiefTechnicians,
+    "/chief/dashboard": t.titles.stats,
+    "/technician/requests": t.titles.technicianOpen,
+    "/technician/closed": t.titles.technicianClosed,
+    "/technician/stats": t.titles.stats,
+    "/manager/requests": t.titles.managerRequests,
+    "/manager/closed": t.titles.managerClosed,
+    "/manager/new": t.titles.newRequest,
+    "/manager/technicians": t.titles.chiefTechnicians,
+    "/manager/stats": t.titles.stats,
+    "/superadmin/requests": t.titles.superadminRequests,
+    "/superadmin/dashboard": t.titles.stats,
+    "/superadmin/users": t.titles.users,
+    "/superadmin/branches": t.titles.branches,
+    "/superadmin/categories": t.titles.categories,
+  };
+}
 
 function Shell({ role }: { role: Role }) {
   const location = useLocation();
+  const { t } = useI18n();
   const isDetail = location.pathname.startsWith("/requests/");
-  const title = isDetail ? "Zayavka tafsilotlari" : TITLES[location.pathname] ?? "Texnik Xizmat";
+  const title = isDetail
+    ? t.titles.requestDetails
+    : pageTitles(t)[location.pathname] ?? t.appTitle;
 
   return (
     <div className="min-h-screen pb-24">
@@ -115,20 +123,25 @@ function Shell({ role }: { role: Role }) {
 
 function AuthGate() {
   const { user, isLoading, error, retry } = useAuth();
+  const { t } = useI18n();
 
-  if (isLoading) return <Spinner label="Kirilmoqda..." />;
+  if (isLoading) return <Spinner label={t.auth.signingIn} />;
 
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center gap-3">
-        <p className="text-tg-text font-medium">Kirishda xatolik</p>
+        <p className="text-tg-text font-medium">{t.auth.signInError}</p>
         <p className="text-tg-hint text-sm">{error}</p>
-        <Button onClick={retry}>Qayta urinish</Button>
+        <Button onClick={retry}>{t.common.retry}</Button>
       </div>
     );
   }
 
   if (!user) return null;
+
+  // Birinchi kirish: foydalanuvchi hali tilni tanlamagan bo'lsa, avval
+  // tilni tanlaydi — keyin ilova o'sha tilda ochiladi.
+  if (!user.language) return <LanguagePicker />;
 
   return <Shell role={user.role} />;
 }

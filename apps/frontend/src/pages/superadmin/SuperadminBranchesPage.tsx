@@ -5,8 +5,10 @@ import { Card, Button, Spinner, Label, Input, StatusPill } from "@/shared/ui/pri
 import { SwipeRow } from "@/shared/ui/SwipeRow";
 import { telegram, confirmDialog } from "@/shared/telegram/webapp";
 import { Plus, Pencil, Trash2, Power, Check, X } from "lucide-react";
+import { useI18n } from "@/shared/i18n";
 
 export function SuperadminBranchesPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
@@ -55,7 +57,7 @@ export function SuperadminBranchesPage() {
     },
     onError: (err: any) => {
       telegram.HapticFeedback.notificationOccurred("error");
-      telegram.showAlert(err?.response?.data?.error?.message ?? "O'chirib bo'lmadi");
+      telegram.showAlert(err?.response?.data?.error?.message ?? t.common.notDeleted);
     },
   });
 
@@ -66,24 +68,24 @@ export function SuperadminBranchesPage() {
   }
 
   async function handleDelete(b: Branch) {
-    const ok = await confirmDialog(`"${b.name}" filialini o'chirasizmi?`);
+    const ok = await confirmDialog(t.branches.deleteConfirm(b.name));
     if (ok) deleteMutation.mutate(b.id);
   }
 
   return (
     <div className="px-4 pt-2 pb-8 space-y-2.5">
       <Card className="!bg-accentSoft/40 border-accentSoft">
-        <Label className="!text-accentDark">Yangi filial qo'shish</Label>
+        <Label className="!text-accentDark">{t.branches.addTitle}</Label>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Filial nomi"
+          placeholder={t.branches.namePlaceholder}
           className="mb-2 !bg-tg-bg"
         />
         <Input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          placeholder="Manzil (ixtiyoriy)"
+          placeholder={t.branches.addressPlaceholder}
           className="mb-3 !bg-tg-bg"
         />
         <Button
@@ -92,13 +94,11 @@ export function SuperadminBranchesPage() {
           disabled={name.trim().length < 2 || createMutation.isPending}
           onClick={() => createMutation.mutate()}
         >
-          Qo'shish
+          {t.common.add}
         </Button>
       </Card>
 
-      <p className="text-[11.5px] text-tg-hint px-1">
-        Tahrirlash, faollik yoki o'chirish uchun kartani chapga suring.
-      </p>
+      <p className="text-[11.5px] text-tg-hint px-1">{t.branches.swipeHint}</p>
 
       {isLoading ? (
         <Spinner />
@@ -106,17 +106,17 @@ export function SuperadminBranchesPage() {
         branches?.map((b) =>
           editingId === b.id ? (
             <Card key={b.id} className="!bg-tg-secondaryBg">
-              <Label>Filialni tahrirlash</Label>
+              <Label>{t.branches.editTitle}</Label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                placeholder="Filial nomi"
+                placeholder={t.branches.namePlaceholder}
                 className="mb-2"
               />
               <Input
                 value={editAddress}
                 onChange={(e) => setEditAddress(e.target.value)}
-                placeholder="Manzil (ixtiyoriy)"
+                placeholder={t.branches.addressPlaceholder}
                 className="mb-3"
               />
               <div className="flex gap-2">
@@ -126,7 +126,7 @@ export function SuperadminBranchesPage() {
                   disabled={editName.trim().length < 2 || editMutation.isPending}
                   onClick={() => editMutation.mutate()}
                 >
-                  Saqlash
+                  {t.common.save}
                 </Button>
                 <Button
                   variant="ghost"
@@ -134,7 +134,7 @@ export function SuperadminBranchesPage() {
                   className="flex-1 !text-xs !border !border-lineStrong"
                   onClick={() => setEditingId(null)}
                 >
-                  Bekor
+                  {t.common.cancel}
                 </Button>
               </div>
             </Card>
@@ -144,21 +144,21 @@ export function SuperadminBranchesPage() {
               actions={[
                 {
                   key: "edit",
-                  label: "Tahrir",
+                  label: t.common.edit,
                   icon: Pencil,
                   className: "bg-status-progress text-white",
                   onClick: () => startEdit(b),
                 },
                 {
                   key: "toggle",
-                  label: b.isActive ? "Nofaol" : "Faol",
+                  label: b.isActive ? t.common.makeInactive : t.common.makeActive,
                   icon: Power,
                   className: "bg-inkFaint text-white",
                   onClick: () => toggleMutation.mutate({ id: b.id, isActive: !b.isActive }),
                 },
                 {
                   key: "delete",
-                  label: "O'chir",
+                  label: t.common.delete,
                   icon: Trash2,
                   className: "bg-priority-critical text-white",
                   onClick: () => handleDelete(b),

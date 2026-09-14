@@ -76,7 +76,10 @@ export interface TechnicianOverview {
 export interface TaskCategory {
   id: string;
   key: string;
+  /** O'zbekcha nomi. */
   label: string;
+  /** Ruscha nomi (bo'sh bo'lsa o'zbekchasi ko'rsatiladi). */
+  labelRu: string | null;
   isActive: boolean;
   sortOrder: number;
 }
@@ -88,10 +91,12 @@ export const categoriesApi = {
 
   // Superadmin boshqaruvi
   manage: () => apiClient.get<TaskCategory[]>("/categories/manage"),
-  create: (data: { label: string; key?: string }) =>
+  create: (data: { label: string; labelRu?: string; key?: string }) =>
     apiClient.post<TaskCategory>("/categories", data),
-  update: (id: string, data: Partial<{ label: string; isActive: boolean; sortOrder: number }>) =>
-    apiClient.patch<TaskCategory>(`/categories/${id}`, data),
+  update: (
+    id: string,
+    data: Partial<{ label: string; labelRu: string | null; isActive: boolean; sortOrder: number }>
+  ) => apiClient.patch<TaskCategory>(`/categories/${id}`, data),
   remove: (id: string) => apiClient.delete<{ success: boolean }>(`/categories/${id}`),
 };
 

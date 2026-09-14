@@ -10,62 +10,65 @@ import {
   Tags,
   LucideIcon,
 } from "lucide-react";
+import { Dictionary, useI18n } from "@/shared/i18n";
 
 interface NavItem {
   to: string;
-  label: string;
+  /** Lug'atdagi matnni tanlab beruvchi funksiya — til almashsa yorliq ham o'zgaradi. */
+  label: (t: Dictionary) => string;
   icon: LucideIcon;
 }
 
 const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   [Role.DIRECTOR]: [
-    { to: "/director/requests", label: "Ochiq", icon: ListChecks },
-    { to: "/director/closed", label: "Tugagan", icon: CheckCircle2 },
-    { to: "/director/new", label: "Yangi", icon: PlusCircle },
-    { to: "/director/stats", label: "Statistika", icon: BarChart3 },
+    { to: "/director/requests", label: (t) => t.nav.open, icon: ListChecks },
+    { to: "/director/closed", label: (t) => t.nav.done, icon: CheckCircle2 },
+    { to: "/director/new", label: (t) => t.nav.new, icon: PlusCircle },
+    { to: "/director/stats", label: (t) => t.nav.stats, icon: BarChart3 },
   ],
   [Role.CHIEF_TECHNICIAN]: [
-    { to: "/chief/requests", label: "Zayavkalar", icon: ListChecks },
-    { to: "/chief/technicians", label: "Texniklar", icon: Users },
-    { to: "/chief/dashboard", label: "Statistika", icon: BarChart3 },
+    { to: "/chief/requests", label: (t) => t.nav.requests, icon: ListChecks },
+    { to: "/chief/technicians", label: (t) => t.nav.technicians, icon: Users },
+    { to: "/chief/dashboard", label: (t) => t.nav.stats, icon: BarChart3 },
   ],
   [Role.TECHNICIAN]: [
-    { to: "/technician/requests", label: "Ochiq", icon: ListChecks },
-    { to: "/technician/closed", label: "Tugagan", icon: CheckCircle2 },
-    { to: "/technician/stats", label: "Statistika", icon: BarChart3 },
+    { to: "/technician/requests", label: (t) => t.nav.open, icon: ListChecks },
+    { to: "/technician/closed", label: (t) => t.nav.done, icon: CheckCircle2 },
+    { to: "/technician/stats", label: (t) => t.nav.stats, icon: BarChart3 },
   ],
   [Role.SUPERADMIN]: [
-    { to: "/superadmin/requests", label: "Zayavkalar", icon: ListChecks },
-    { to: "/superadmin/dashboard", label: "Statistika", icon: BarChart3 },
-    { to: "/superadmin/users", label: "Xodimlar", icon: Users },
-    { to: "/superadmin/branches", label: "Filiallar", icon: Building2 },
-    { to: "/superadmin/categories", label: "Kategoriya", icon: Tags },
+    { to: "/superadmin/requests", label: (t) => t.nav.requests, icon: ListChecks },
+    { to: "/superadmin/dashboard", label: (t) => t.nav.stats, icon: BarChart3 },
+    { to: "/superadmin/users", label: (t) => t.nav.staff, icon: Users },
+    { to: "/superadmin/branches", label: (t) => t.nav.branches, icon: Building2 },
+    { to: "/superadmin/categories", label: (t) => t.nav.categories, icon: Tags },
   ],
   // Hududiy rahbar — biriktirilgan filiallari bo'yicha.
   [Role.REGIONAL_MANAGER]: [
-    { to: "/manager/requests", label: "Ochiq", icon: ListChecks },
-    { to: "/manager/closed", label: "Tarix", icon: CheckCircle2 },
-    { to: "/manager/new", label: "Yangi", icon: PlusCircle },
-    { to: "/manager/stats", label: "Statistika", icon: BarChart3 },
+    { to: "/manager/requests", label: (t) => t.nav.open, icon: ListChecks },
+    { to: "/manager/closed", label: (t) => t.nav.history, icon: CheckCircle2 },
+    { to: "/manager/new", label: (t) => t.nav.new, icon: PlusCircle },
+    { to: "/manager/stats", label: (t) => t.nav.stats, icon: BarChart3 },
   ],
   // Rahbar — barcha filiallar + texniklar nazorati.
   [Role.EXECUTIVE]: [
-    { to: "/manager/requests", label: "Zayavkalar", icon: ListChecks },
-    { to: "/manager/closed", label: "Tarix", icon: CheckCircle2 },
-    { to: "/manager/technicians", label: "Texniklar", icon: Users },
-    { to: "/manager/new", label: "Yangi", icon: PlusCircle },
-    { to: "/manager/stats", label: "Statistika", icon: BarChart3 },
+    { to: "/manager/requests", label: (t) => t.nav.requests, icon: ListChecks },
+    { to: "/manager/closed", label: (t) => t.nav.history, icon: CheckCircle2 },
+    { to: "/manager/technicians", label: (t) => t.nav.technicians, icon: Users },
+    { to: "/manager/new", label: (t) => t.nav.new, icon: PlusCircle },
+    { to: "/manager/stats", label: (t) => t.nav.stats, icon: BarChart3 },
   ],
   // Filial menejeri — faqat o'z filiali.
   [Role.BRANCH_MANAGER]: [
-    { to: "/manager/requests", label: "Ochiq", icon: ListChecks },
-    { to: "/manager/closed", label: "Tarix", icon: CheckCircle2 },
-    { to: "/manager/new", label: "Yangi", icon: PlusCircle },
-    { to: "/manager/stats", label: "Statistika", icon: BarChart3 },
+    { to: "/manager/requests", label: (t) => t.nav.open, icon: ListChecks },
+    { to: "/manager/closed", label: (t) => t.nav.history, icon: CheckCircle2 },
+    { to: "/manager/new", label: (t) => t.nav.new, icon: PlusCircle },
+    { to: "/manager/stats", label: (t) => t.nav.stats, icon: BarChart3 },
   ],
 };
 
 export function BottomNav({ role }: { role: Role }) {
+  const { t } = useI18n();
   const items = NAV_BY_ROLE[role];
 
   return (
@@ -91,7 +94,7 @@ export function BottomNav({ role }: { role: Role }) {
                     isActive ? "text-accent font-bold" : "text-inkFaint font-semibold"
                   }`}
                 >
-                  {label}
+                  {label(t)}
                 </span>
               </>
             )}

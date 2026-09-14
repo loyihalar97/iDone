@@ -1,13 +1,14 @@
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Priority, PRIORITY_LABELS_UZ, Role, ROLE_LABELS_UZ, RequestStatus } from "@app/shared-types";
+import { Priority, Role, RequestStatus } from "@app/shared-types";
 import { requestsApi, mediaApi } from "@/shared/api/requests";
 import { usersApi } from "@/shared/api";
 import { Card, Button, Spinner, Label, Select, Textarea, Thumb } from "@/shared/ui/primitives";
 import { PriorityBadge, StatusBadge } from "@/shared/ui/Badges";
 import { useCategoryLabels } from "@/shared/hooks/useCategories";
 import { useAuth } from "@/shared/hooks/useAuth";
+import { useI18n } from "@/shared/i18n";
 import { telegram } from "@/shared/telegram/webapp";
 import {
   Camera,
@@ -21,19 +22,17 @@ import {
   Repeat,
 } from "lucide-react";
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("uz-UZ", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const PRIORITY_ORDER: Priority[] = [
+  Priority.LOW,
+  Priority.MEDIUM,
+  Priority.HIGH,
+  Priority.CRITICAL,
+];
 
 export function RequestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { t, priorityText, roleText, formatDateTime, formatNumber } = useI18n();
   const { labelFor } = useCategoryLabels();
   const queryClient = useQueryClient();
   const [afterFile, setAfterFile] = useState<File | null>(null);
@@ -66,7 +65,7 @@ export function RequestDetailPage() {
 
   function onMutationError(err: any) {
     telegram.HapticFeedback.notificationOccurred("error");
-    telegram.showAlert(err?.response?.data?.error?.message ?? err.message ?? "Xatolik yuz berdi");
+    telegram.showAlert(err?.response?.data?.error?.message ?? err.message ?? t.common.error);
   }
 
   function invalidate() {
@@ -110,7 +109,7 @@ export function RequestDetailPage() {
       let expenseAmount: number | undefined;
 
       if (nextStatus === RequestStatus.COMPLETED_BY_TECHNICIAN) {
-        if (!afterFile) throw new Error("Natija rasmi majburiy");
+        if (!afterFile) throw new Error(t.detail.resultPhotoMissing);
         const { data } = await mediaApi.upload(afterFile);
         afterPhotoUrl = data.url;
 
@@ -118,7 +117,7 @@ export function RequestDetailPage() {
         if (technicianExpense.trim() !== "") {
           const parsed = Number(technicianExpense.replace(/\s/g, ""));
           if (Number.isNaN(parsed) || parsed < 0) {
-            throw new Error("Harajat summasi noto'g'ri kiritilgan");
+            throw new Error(t.detail.invalidExpense);
           }
           expenseAmount = parsed;
         }
@@ -129,7 +128,7 @@ export function RequestDetailPage() {
         if (expenseTouched && expenseInput.trim() !== "") {
           const parsed = Number(expenseInput.replace(/\s/g, ""));
           if (Number.isNaN(parsed) || parsed < 0) {
-            throw new Error("Harajat summasi noto'g'ri kiritilgan");
+            throw new Error(t.detail.invalidExpense);
           }
           expenseAmount = parsed;
         }
@@ -144,7 +143,7 @@ export function RequestDetailPage() {
     onError: onMutationError,
   });
 
-  if (isLoading || !request) return <Spinner label="Yuklanmoqda..." />;
+  if (isLoading || !request) return <Spinner label={t.common.loading} />;
 
   const isAssignedTechnician =
     user?.role === Role.TECHNICIAN && request.technician?.id === user.id;
@@ -189,36 +188,36 @@ export function RequestDetailPage() {
         <p className="text-[14px] text-tg-text mb-3.5 leading-relaxed">{request.description}</p>
         <Thumb
           src={request.beforePhotoUrl}
-          alt="Muammo"
+          alt={t.detail.problemPhoto}
           className="w-full h-48 object-cover rounded-control mb-3"
         />
         <p className="text-[12px] font-medium text-inkFaint">
-          Yaratdi: {request.createdBy.fullName}
-          {request.createdBy.role
-            ? ` (${ROLE_LABELS_UZ[request.createdBy.role as Role] ?? request.createdBy.role})`
-            : ""}
+          {t.detail.createdBy}: {request.createdBy.fullName}
+          {request.createdBy.role ? ` (${roleText(request.createdBy.role)})` : ""}
         </p>
         {request.chiefTechnician && (
           <p className="text-[12px] font-medium text-inkFaint">
-            Bosh texnik: {request.chiefTechnician.fullName}
+            {t.detail.chiefTechnician}: {request.chiefTechnician.fullName}
           </p>
         )}
         {request.technician && (
-          <p className="text-[12px] font-medium text-inkFaint">Texnik: {request.technician.fullName}</p>
+          <p className="text-[12px] font-medium text-inkFaint">
+            {t.detail.technician}: {request.technician.fullName}
+          </p>
         )}
         {request.expenseAmount !== null && request.expenseAmount !== undefined && (
           <p className="text-[12px] font-bold text-tg-text mt-1">
-            💵 Harajat: {request.expenseAmount.toLocaleString("uz-UZ")} so'm
+            💵 {t.detail.expense}: {formatNumber(request.expenseAmount)} {t.common.currency}
           </p>
         )}
       </Card>
 
       {request.afterPhotoUrl && (
         <Card>
-          <Label>Natija rasmi</Label>
+          <Label>{t.detail.resultPhoto}</Label>
           <Thumb
             src={request.afterPhotoUrl ?? undefined}
-            alt="Natija"
+            alt={t.detail.result}
             className="w-full h-48 object-cover rounded-control"
           />
         </Card>
@@ -227,7 +226,7 @@ export function RequestDetailPage() {
       {/* Bajarish imkonsizligi haqidagi izohlar — barcha ko'ra oladiganlarga. */}
       {blockerComments.length > 0 && (
         <Card className="!border-priority-critical/30">
-          <Label>Bajarish imkonsizligi sabablari</Label>
+          <Label>{t.detail.blockersTitle}</Label>
           <div className="space-y-2.5">
             {blockerComments.map((c) => (
               <div key={c.id} className="rounded-control bg-priority-critical/5 px-3 py-2.5">
@@ -247,22 +246,22 @@ export function RequestDetailPage() {
 
       {canChangePriority && (
         <Card>
-          <Label>Muhimlik darajasini o'zgartirish</Label>
+          <Label>{t.detail.changePriority}</Label>
           <div className="grid grid-cols-4 gap-2">
-            {Object.entries(PRIORITY_LABELS_UZ).map(([value, label]) => {
+            {PRIORITY_ORDER.map((value) => {
               const isActive = request.priority === value;
               return (
                 <button
                   key={value}
                   disabled={priorityMutation.isPending || isActive}
-                  onClick={() => priorityMutation.mutate(value as Priority)}
+                  onClick={() => priorityMutation.mutate(value)}
                   className={`py-2.5 rounded-control text-[12.5px] font-bold border-[1.5px] transition disabled:opacity-100 ${
                     isActive
                       ? "border-accent bg-accentSoft text-accent"
                       : "border-lineStrong text-inkSoft active:opacity-70"
                   }`}
                 >
-                  {label}
+                  {priorityText(value)}
                 </button>
               );
             })}
@@ -273,19 +272,21 @@ export function RequestDetailPage() {
       {canAssign && (
         <Card>
           <Label>
-            {request.technician ? "Texnikni o'zgartirish" : "Texnikni biriktirish"}
+            {request.technician ? t.detail.changeTechnician : t.detail.assignTechnician}
           </Label>
           <Select
             value={selectedTechnicianId}
             onChange={(e) => setSelectedTechnicianId(e.target.value)}
             className="mb-3"
           >
-            <option value="">Texnikni tanlang</option>
-            {technicians?.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.fullName}
-                {t.id === user?.id ? " (o'zim)" : ""}
-                {t.role === Role.CHIEF_TECHNICIAN && t.id !== user?.id ? " (bosh texnik)" : ""}
+            <option value="">{t.detail.pickTechnician}</option>
+            {technicians?.map((tech) => (
+              <option key={tech.id} value={tech.id}>
+                {tech.fullName}
+                {tech.id === user?.id ? t.detail.self : ""}
+                {tech.role === Role.CHIEF_TECHNICIAN && tech.id !== user?.id
+                  ? t.detail.chiefSuffix
+                  : ""}
               </option>
             ))}
           </Select>
@@ -295,24 +296,21 @@ export function RequestDetailPage() {
             disabled={!selectedTechnicianId || assignMutation.isPending}
             onClick={() => assignMutation.mutate()}
           >
-            {request.technician ? "O'zgartirish" : "Biriktirish"}
+            {request.technician ? t.detail.change : t.detail.assign}
           </Button>
         </Card>
       )}
 
       {canComment && (
         <Card>
-          <Label>Bu ishni bajarish imkonsiz (izoh)</Label>
+          <Label>{t.detail.commentTitle}</Label>
           <Textarea
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             rows={3}
-            placeholder="Sababini yozing — filial direktoriga xabar bo'lib boradi..."
+            placeholder={t.detail.commentPlaceholder}
           />
-          <p className="text-[11.5px] text-tg-hint mt-2 mb-3">
-            Texnik biriktirilmaydi, zayavka holati o'zgarmaydi. Izoh filial direktorining bot
-            chatiga yuboriladi.
-          </p>
+          <p className="text-[11.5px] text-tg-hint mt-2 mb-3">{t.detail.commentHint}</p>
           <Button
             icon={MessageSquareWarning}
             variant="secondary"
@@ -320,7 +318,7 @@ export function RequestDetailPage() {
             disabled={commentText.trim().length < 3 || commentMutation.isPending}
             onClick={() => commentMutation.mutate()}
           >
-            {commentMutation.isPending ? "Yuborilmoqda..." : "Izohni yuborish"}
+            {commentMutation.isPending ? t.common.sending : t.detail.sendComment}
           </Button>
         </Card>
       )}
@@ -332,16 +330,16 @@ export function RequestDetailPage() {
           disabled={statusMutation.isPending}
           onClick={() => statusMutation.mutate(RequestStatus.IN_PROGRESS)}
         >
-          Ishni boshlash
+          {t.detail.startWork}
         </Button>
       )}
 
       {canComplete && (
         <Card>
-          <Label>Natija rasmi (majburiy)</Label>
+          <Label>{t.detail.resultPhotoRequired}</Label>
           <label className="flex flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-lineStrong rounded-control px-3 py-6 text-center text-[12.5px] font-semibold text-inkFaint cursor-pointer">
             <Camera size={20} strokeWidth={1.75} />
-            {afterFile ? afterFile.name : "Rasm yoki video tanlang"}
+            {afterFile ? afterFile.name : t.newRequest.pickFile}
             <input
               type="file"
               accept="image/*,video/*"
@@ -351,7 +349,7 @@ export function RequestDetailPage() {
             />
           </label>
 
-          <Label className="mt-4">Ishlatilgan harajat (ixtiyoriy)</Label>
+          <Label className="mt-4">{t.detail.technicianExpense}</Label>
           <div className="relative">
             <Banknote
               size={16}
@@ -364,16 +362,14 @@ export function RequestDetailPage() {
               min={0}
               value={technicianExpense}
               onChange={(e) => setTechnicianExpense(e.target.value)}
-              placeholder="Masalan: 150000"
+              placeholder={t.detail.expensePlaceholder}
               className="w-full bg-tg-secondaryBg border border-line rounded-control pl-9 pr-14 py-2.5 text-[14px] font-semibold text-tg-text outline-none focus:border-accent"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-inkFaint">
-              so'm
+              {t.common.currency}
             </span>
           </div>
-          <p className="text-[11.5px] text-tg-hint mt-2">
-            Bo'sh qoldirsangiz harajat avtomatik 0 deb yoziladi.
-          </p>
+          <p className="text-[11.5px] text-tg-hint mt-2">{t.detail.expenseAutoZero}</p>
 
           <Button
             icon={CheckCheck}
@@ -381,14 +377,14 @@ export function RequestDetailPage() {
             disabled={!afterFile || statusMutation.isPending}
             onClick={() => statusMutation.mutate(RequestStatus.COMPLETED_BY_TECHNICIAN)}
           >
-            {statusMutation.isPending ? "Yuborilmoqda..." : "Ishni yakunlash"}
+            {statusMutation.isPending ? t.common.sending : t.detail.finishWork}
           </Button>
         </Card>
       )}
 
       {canChiefFinish && (
         <Card>
-          <Label>Harajat summasi (ixtiyoriy — tahrirlash)</Label>
+          <Label>{t.detail.chiefExpense}</Label>
           <div className="relative mb-1">
             <Banknote
               size={16}
@@ -410,24 +406,21 @@ export function RequestDetailPage() {
                 setExpenseTouched(true);
                 setExpenseInput(e.target.value);
               }}
-              placeholder="Masalan: 150000"
+              placeholder={t.detail.expensePlaceholder}
               className="w-full bg-tg-secondaryBg border border-line rounded-control pl-9 pr-14 py-2.5 text-[14px] font-semibold text-tg-text outline-none focus:border-accent"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-inkFaint">
-              so'm
+              {t.common.currency}
             </span>
           </div>
-          <p className="text-[11.5px] text-tg-hint mb-3">
-            Texnik kiritgan summa ko'rsatilgan. O'zgartirish shart emas — shundayligicha
-            yakunlashingiz mumkin.
-          </p>
+          <p className="text-[11.5px] text-tg-hint mb-3">{t.detail.chiefExpenseHint}</p>
           <Button
             icon={CheckCheck}
             className="w-full"
             disabled={statusMutation.isPending}
             onClick={() => statusMutation.mutate(RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN)}
           >
-            {statusMutation.isPending ? "Yuborilmoqda..." : "Ishni yakunlash"}
+            {statusMutation.isPending ? t.common.sending : t.detail.finishWork}
           </Button>
         </Card>
       )}
@@ -438,7 +431,7 @@ export function RequestDetailPage() {
           className="w-full"
           onClick={() => statusMutation.mutate(RequestStatus.ACCEPTED_BY_DIRECTOR)}
         >
-          Qabul qilish (zayavka yopiladi)
+          {t.detail.acceptAndClose}
         </Button>
       )}
     </div>

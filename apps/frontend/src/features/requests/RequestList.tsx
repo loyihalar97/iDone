@@ -3,11 +3,12 @@ import { RequestItem } from "@/shared/api/requests";
 import { RequestCard } from "./RequestCard";
 import { Spinner, EmptyState } from "@/shared/ui/primitives";
 import { SwipeRow } from "@/shared/ui/SwipeRow";
+import { useI18n } from "@/shared/i18n";
 
 export function RequestList({
   items,
   isLoading,
-  emptyTitle = "Zayavkalar topilmadi",
+  emptyTitle,
   emptySubtitle,
   emptyIcon,
   onDelete,
@@ -20,9 +21,17 @@ export function RequestList({
   /** Berilsa — har bir karta chapga surilganda "O'chirish" amali ko'rinadi. */
   onDelete?: (request: RequestItem) => void;
 }) {
-  if (isLoading) return <Spinner label="Yuklanmoqda..." />;
+  const { t } = useI18n();
+
+  if (isLoading) return <Spinner label={t.common.loading} />;
   if (!items || items.length === 0)
-    return <EmptyState title={emptyTitle} subtitle={emptySubtitle} icon={emptyIcon} />;
+    return (
+      <EmptyState
+        title={emptyTitle ?? t.request.emptyNotFound}
+        subtitle={emptySubtitle}
+        icon={emptyIcon}
+      />
+    );
 
   return (
     <div className="px-4 pb-4 space-y-3">
@@ -33,7 +42,7 @@ export function RequestList({
             actions={[
               {
                 key: "delete",
-                label: "O'chirish",
+                label: t.common.deleteFull,
                 icon: Trash2,
                 className: "bg-priority-critical text-white",
                 onClick: () => onDelete(r),

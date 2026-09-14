@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { LucideIcon, Loader2, ImageOff } from "lucide-react";
+import { useI18n } from "@/shared/i18n";
 
 export function Card({ children, className = "" }: PropsWithChildren<{ className?: string }>) {
   return (
@@ -79,10 +80,22 @@ export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSe
   );
 }
 
-export function Thumb({ className = "", alt = "", ...props }: ImgHTMLAttributes<HTMLImageElement>) {
-  const [failed, setFailed] = useState(false);
+interface ThumbProps extends ImgHTMLAttributes<HTMLImageElement> {
+  /**
+   * Asosiy manzil yuklanmasa ishlatiladigan zaxira manzil. Ro'yxat
+   * kartalarida `src` — kichik nusxa (`*_thumb.jpg`), `fallbackSrc` esa
+   * to'liq rasm: eski (thumbnail'siz yuklangan) rasmlar ham ko'rinaveradi.
+   */
+  fallbackSrc?: string;
+}
 
-  if (failed || !props.src) {
+export function Thumb({ className = "", alt = "", fallbackSrc, src, ...props }: ThumbProps) {
+  const [failed, setFailed] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
+
+  const current = useFallback ? fallbackSrc : src;
+
+  if (failed || !current) {
     return (
       <div
         className={`flex items-center justify-center bg-tg-secondaryBg border border-line text-inkFaint ${className}`}
@@ -95,8 +108,13 @@ export function Thumb({ className = "", alt = "", ...props }: ImgHTMLAttributes<
   return (
     <img
       alt={alt}
+      src={current}
       className={`border border-line bg-tg-secondaryBg ${className}`}
-      onError={() => setFailed(true)}
+      onError={() => {
+        // Avval zaxira manzilni sinab ko'ramiz, u ham bo'lmasa placeholder.
+        if (!useFallback && fallbackSrc && fallbackSrc !== src) setUseFallback(true);
+        else setFailed(true);
+      }}
       {...props}
     />
   );
@@ -136,13 +154,17 @@ export function EmptyState({
 /** Status/faollik ko'rsatkichi uchun kichik pill — foydalanuvchi va filial kartalarida ishlatiladi. */
 export function StatusPill({
   active,
-  activeLabel = "Faol",
-  inactiveLabel = "Faol emas",
+  activeLabel,
+  inactiveLabel,
 }: {
   active: boolean;
   activeLabel?: string;
   inactiveLabel?: string;
 }) {
+  const { t } = useI18n();
+  const onLabel = activeLabel ?? t.common.active;
+  const offLabel = inactiveLabel ?? t.common.inactive;
+
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-bold ${
@@ -150,7 +172,7 @@ export function StatusPill({
       }`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-status-directorAccepted" : "bg-inkFaint"}`} />
-      {active ? activeLabel : inactiveLabel}
+      {active ? onLabel : offLabel}
     </span>
   );
 }

@@ -4,8 +4,10 @@ import { requestsApi } from "@/shared/api/requests";
 import { RequestList } from "@/features/requests/RequestList";
 import { ExportButtons } from "@/features/requests/ExportButtons";
 import { CheckCircle2 } from "lucide-react";
+import { useI18n } from "@/shared/i18n";
 
 export function DirectorClosedRequestsPage() {
+  const { t } = useI18n();
   const { data, isLoading } = useQuery({
     queryKey: ["requests", "director"],
     queryFn: () => requestsApi.list({ pageSize: 100 }).then((r) => r.data),
@@ -19,8 +21,8 @@ export function DirectorClosedRequestsPage() {
       <RequestList
         items={closedItems}
         isLoading={isLoading}
-        emptyTitle="Tugatilgan zayavkalar yo'q"
-        emptySubtitle="Yopilgan zayavkalar shu yerda ko'rinadi"
+        emptyTitle={t.request.emptyClosedTitle}
+        emptySubtitle={t.request.emptyClosedSubtitle}
         emptyIcon={CheckCircle2}
       />
     </div>
