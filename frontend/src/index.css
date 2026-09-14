@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--tg-theme-secondary-bg-color, #F4F5F7);
+  color: var(--tg-theme-text-color, #12141C);
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+/* Raqamlar, ID va statistika qiymatlari uchun texnik, aniq shrift */
+.font-num {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: -0.02em;
+}
+
+/* Chiziqli (line) ikonlar uchun standart qalinlik */
+svg {
+  stroke-width: 1.75px;
+}
+
+/* Telegram Mini App'da pastki xavfsiz hudud (home indicator) uchun bo'shliq */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--tg-theme-link-color, #2F5AF5);
+  outline-offset: 2px;
+}
+
+::selection {
+  background-color: #DCE4FF;
+}
