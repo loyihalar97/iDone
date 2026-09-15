@@ -9,7 +9,7 @@ qaytadan ko'rib chiqildi.
 
 Ilgari rasmlar yopilgandan keyin ham **7 kun** diskda turardi. Endi
 zayavka yopilishi bilan rasmlar **diskdan ham, bazadan ham darhol**
-o'chiriladi (`MEDIA_RETENTION_DAYS` standarti `7` → `0`).
+o'chiriladi (`MEDIA_RETENTION_DAYS` standarti `7` → `0`).  
 
 Bu xavfsiz, chunki "zayavka yopildi" xabari Telegramga rasmlar bilan
 birga **yetkazilib bo'lgandan keyin** o'chiriladi — Telegram rasmni o'z
