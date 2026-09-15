@@ -217,7 +217,7 @@ export async function sendReportsForPeriod(
     where: { isActive: true, role: { in: REPORT_RECIPIENT_ROLES as any } },
     select: { id: true, fullName: true, role: true, language: true },
   })) as Recipient[];
-  });
+
 
   const result: ReportRunResult = { period: period.key, sent: 0, empty: 0, skipped: 0, failed: 0 };
 
