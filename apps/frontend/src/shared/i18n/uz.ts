@@ -139,8 +139,6 @@ export const uz = {
     resultPhoto: "Natija rasmi",
     result: "Natija",
     createdBy: "Yaratdi",
-    openedAt: "Ochilgan sanasi",
-    closedAt: "Yopilgan sanasi",
     chiefTechnician: "Bosh texnik",
     technician: "Texnik",
     expense: "Harajat",

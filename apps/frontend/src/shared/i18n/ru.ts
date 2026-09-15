@@ -139,8 +139,6 @@ export const ru: Dictionary = {
     resultPhoto: "Фото результата",
     result: "Результат",
     createdBy: "Создал",
-    openedAt: "Дата открытия",
-    closedAt: "Дата закрытия",
     chiefTechnician: "Главный техник",
     technician: "Техник",
     expense: "Расходы",
