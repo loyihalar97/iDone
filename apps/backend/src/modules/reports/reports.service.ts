@@ -209,9 +209,14 @@ export async function sendReportsForPeriod(
   period: ReportPeriod,
   opts: { force?: boolean } = {}
 ): Promise<ReportRunResult> {
-  const recipients: Recipient[] = await prisma.user.findMany({
+   // Prisma'ning o'z generatsiya qilingan Role enum'i @app/shared-types'dagi
+  // Role bilan qiymat jihatidan bir xil, lekin nominal jihatdan boshqa tip
+  // hisoblanadi — shuning uchun aniq cast qilamiz (loyihadagi boshqa
+  // joylarda ham xuddi shu sabab bilan `as any` ishlatilgan).
+  const recipients: Recipient[] = (await prisma.user.findMany({
     where: { isActive: true, role: { in: REPORT_RECIPIENT_ROLES as any } },
     select: { id: true, fullName: true, role: true, language: true },
+  })) as Recipient[];
   });
 
   const result: ReportRunResult = { period: period.key, sent: 0, empty: 0, skipped: 0, failed: 0 };
