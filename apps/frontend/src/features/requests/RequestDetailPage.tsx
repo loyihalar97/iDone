@@ -195,6 +195,14 @@ export function RequestDetailPage() {
           {t.detail.createdBy}: {request.createdBy.fullName}
           {request.createdBy.role ? ` (${roleText(request.createdBy.role)})` : ""}
         </p>
+        <p className="font-num text-[12px] font-medium text-inkFaint">
+          {t.detail.openedAt}: {formatDateTime(request.createdAt)}
+        </p>
+        {request.closedAt && (
+          <p className="font-num text-[12px] font-medium text-inkFaint">
+            {t.detail.closedAt}: {formatDateTime(request.closedAt)}
+          </p>
+        )}
         {request.chiefTechnician && (
           <p className="text-[12px] font-medium text-inkFaint">
             {t.detail.chiefTechnician}: {request.chiefTechnician.fullName}

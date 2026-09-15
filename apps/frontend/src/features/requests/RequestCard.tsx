@@ -6,7 +6,7 @@ import { Dictionary, localeOf, useI18n } from "@/shared/i18n";
 import { thumbUrl } from "@/shared/lib/media";
 import { Language } from "@app/shared-types";
 import { Link } from "react-router-dom";
-import { User, ImageIcon, AlertTriangle } from "lucide-react";
+import { User, ImageIcon, AlertTriangle, CalendarPlus, CalendarCheck2 } from "lucide-react";
 
 /** "3 soat oldin" / "3 ч. назад" ko'rinishidagi nisbiy vaqt. */
 function relativeTime(iso: string, t: Dictionary, lang: Language): string {
@@ -23,7 +23,7 @@ function relativeTime(iso: string, t: Dictionary, lang: Language): string {
 
 export function RequestCard({ request }: { request: RequestItem }) {
   const { labelFor } = useCategoryLabels();
-  const { t, lang } = useI18n();
+  const { t, lang, formatDateTime } = useI18n();
   // Bosh texnik "bajarish imkonsiz" izohini yozganini ro'yxatda ham ko'rsatamiz.
   const hasBlocker = (request.comments ?? []).some((c) => c.isBlocker);
   return (
@@ -74,6 +74,18 @@ export function RequestCard({ request }: { request: RequestItem }) {
           ) : (
             <span className="font-num text-[10.5px] text-inkFaint ml-auto">
               {relativeTime(request.createdAt, t, lang)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 flex-wrap mt-2 pt-2 border-t border-line/60">
+          <span className="font-num inline-flex items-center gap-1 text-[10.5px] font-semibold text-inkFaint">
+            <CalendarPlus size={11} strokeWidth={2} />
+            {t.detail.openedAt}: {formatDateTime(request.createdAt)}
+          </span>
+          {request.closedAt && (
+            <span className="font-num inline-flex items-center gap-1 text-[10.5px] font-semibold text-inkFaint">
+              <CalendarCheck2 size={11} strokeWidth={2} />
+              {t.detail.closedAt}: {formatDateTime(request.closedAt)}
             </span>
           )}
         </div>
