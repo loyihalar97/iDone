@@ -80,6 +80,52 @@ function buildWhere(filters: RequestFilters): Prisma.RequestWhereInput {
   };
 }
 
+/**
+ * `opts.fullComments = true` — izohlar matni bilan (eksport/hisobot uchun).
+ * Standart holatda ro'yxat uchun yengil variant ishlatiladi.
+ *
+ * Ikkita overload: `fullComments: true` chaqiruvchilar uchun to'liq
+ * (author bilan) `comments` tipini qaytaradi, aks holda yengil variantni.
+ * (Obyekt literal ichida method overload sintaksisi ishlamaydi, shuning
+ * uchun bu funksiya alohida e'lon qilinib, keyin repository obyektiga
+ * qo'shiladi.) Shu overload'lar bo'lmasa, TypeScript ikkala shoxobchani
+ * birlashtirib (union) qaytaradi va `RequestWithRelations[]` kutgan
+ * joylarda (masalan eksport) tip xatosi beradi.
+ */
+function findMany(
+  filters: RequestFilters,
+  skip: number,
+  take: number,
+  opts: { fullComments: true }
+): Promise<[Prisma.RequestGetPayload<{ include: typeof includeRelations }>[], number]>;
+function findMany(
+  filters: RequestFilters,
+  skip: number,
+  take: number,
+  opts?: { fullComments?: false }
+): Promise<[Prisma.RequestGetPayload<{ include: typeof listRelations }>[], number]>;
+function findMany(
+  filters: RequestFilters,
+  skip: number,
+  take: number,
+  opts: { fullComments?: boolean } = {}
+) {
+  const where = buildWhere(filters);
+
+  return prisma.$transaction([
+    prisma.request.findMany({
+      where,
+      include: opts.fullComments ? includeRelations : listRelations,
+      // Avval Bosh texnik belgilagan ish ketma-ketligi (sortOrder), so'ngra
+      // eng yangi zayavkalar. Yangi zayavkalar sortOrder=0 bilan tepada turadi.
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      skip,
+      take,
+    }),
+    prisma.request.count({ where }),
+  ]);
+}
+
 export const requestsRepository = {
   create(data: Prisma.RequestUncheckedCreateInput) {
     return prisma.request.create({ data, include: includeRelations });
@@ -89,31 +135,7 @@ export const requestsRepository = {
     return prisma.request.findUnique({ where: { id }, include: includeRelations });
   },
 
-  /**
-   * `opts.fullComments = true` — izohlar matni bilan (eksport/hisobot uchun).
-   * Standart holatda ro'yxat uchun yengil variant ishlatiladi.
-   */
-  findMany(
-    filters: RequestFilters,
-    skip: number,
-    take: number,
-    opts: { fullComments?: boolean } = {}
-  ) {
-    const where = buildWhere(filters);
-
-    return prisma.$transaction([
-      prisma.request.findMany({
-        where,
-        include: opts.fullComments ? includeRelations : listRelations,
-        // Avval Bosh texnik belgilagan ish ketma-ketligi (sortOrder), so'ngra
-        // eng yangi zayavkalar. Yangi zayavkalar sortOrder=0 bilan tepada turadi.
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-        skip,
-        take,
-      }),
-      prisma.request.count({ where }),
-    ]);
-  },
+  findMany,
 
   updateStatus(id: string, status: PrismaRequestStatus, extra: Prisma.RequestUpdateInput = {}) {
     return prisma.request.update({
