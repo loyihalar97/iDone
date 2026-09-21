@@ -22,6 +22,13 @@ RUN npm install \
   --workspace=@app/frontend \
   --include-workspace-root
 
+# Railway ba'zan Docker keshini juda "agressiv" saqlab qoladi — hatto manba
+# kod o'zgargan taqdirda ham. RAILWAY_GIT_COMMIT_SHA har commit'da avtomatik
+# o'zgaradi, shuning uchun buni shu yerga qo'yish quyidagi barcha qatlamlarni
+# (manba kod COPY'lari va build'lar) HAR DOIM qaytadan bajarishga majburlaydi.
+ARG RAILWAY_GIT_COMMIT_SHA
+RUN echo "Building commit: ${RAILWAY_GIT_COMMIT_SHA:-local}"
+
 # manba kod
 COPY packages/shared-types packages/shared-types
 COPY apps/backend apps/backend
