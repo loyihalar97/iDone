@@ -8,7 +8,7 @@ Arxitektura tafsilotlari uchun [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ga
 
 ## Loyiha tuzilishi
 
-```
+``` 
 apps/
   backend/    Express + TypeScript + Prisma API server
   bot/        Telegraf bot (bildirishnomalar + Mini App ochish tugmasi)
