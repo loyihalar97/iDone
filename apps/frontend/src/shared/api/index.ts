@@ -113,3 +113,12 @@ export interface DashboardStats {
 export const dashboardApi = {
   stats: () => apiClient.get<DashboardStats>("/dashboard/stats"),
 };
+
+export const notificationsApi = {
+  /** Superadmin: barcha faol foydalanuvchilarning bot chatiga xabar yuboradi. */
+  broadcast: (text: string) =>
+    apiClient.post<{ total: number; sent: number; failed: number }>(
+      "/notifications/broadcast",
+      { text }
+    ),
+};

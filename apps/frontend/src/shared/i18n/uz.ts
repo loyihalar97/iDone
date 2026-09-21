@@ -215,6 +215,21 @@ export const uz = {
     busiestTechnicians: "Eng band texniklar",
   },
 
+  broadcast: {
+    title: "Barchaga xabar yuborish",
+    hint: "Xabar botdan foydalanadigan barcha faol xodimlarning shaxsiy chatiga bir vaqtda yuboriladi.",
+    placeholder: "Xabar matnini kiriting...",
+    send: "Yuborish",
+    sending: "Yuborilmoqda...",
+    confirm: "Xabar barcha faol foydalanuvchilarga yuborilsinmi? Bu amalni bekor qilib bo'lmaydi.",
+    result: (sent: number, failed: number) =>
+      failed > 0
+        ? `Yuborildi: ${sent} ta. Yuborilmadi: ${failed} ta (bot bloklangan yoki /start bosilmagan).`
+        : `Xabar ${sent} ta foydalanuvchiga muvaffaqiyatli yuborildi.`,
+    emptyText: "Avval xabar matnini kiriting",
+    noRecipients: "Yuborish uchun faol foydalanuvchi topilmadi",
+  },
+
   branches: {
     addTitle: "Yangi filial qo'shish",
     namePlaceholder: "Filial nomi",

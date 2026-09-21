@@ -1,7 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
-import { dashboardApi } from "@/shared/api";
-import { Card, Spinner } from "@/shared/ui/primitives";
-import { LucideIcon, Inbox, Clock, CheckCircle2, CalendarCheck, Timer } from "lucide-react";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { dashboardApi, notificationsApi } from "@/shared/api";
+import { Card, Spinner, Textarea, Button } from "@/shared/ui/primitives";
+import { LucideIcon, Inbox, Clock, CheckCircle2, CalendarCheck, Timer, Megaphone, Send } from "lucide-react";
+import { telegram, confirmDialog } from "@/shared/telegram/webapp";
 import { useI18n } from "@/shared/i18n";
 
 function StatCard({
@@ -26,6 +28,70 @@ function StatCard({
   );
 }
 
+/**
+ * Superadmin botdan foydalanadigan BARCHA faol xodimlarning shaxsiy Telegram
+ * chatiga bir vaqtda xabar yubora oladi (masalan: texnik ishlar haqida
+ * ogohlantirish). Backend buni kichik partiyalarda yuboradi (Telegram
+ * limitidan asraydi), shuning uchun bir nechta soniya davom etishi mumkin.
+ */
+function BroadcastCard() {
+  const { t } = useI18n();
+  const [text, setText] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: () => notificationsApi.broadcast(text.trim()).then((r) => r.data),
+    onSuccess: (result) => {
+      if (result.total === 0) {
+        telegram.showAlert(t.broadcast.noRecipients);
+        return;
+      }
+      telegram.HapticFeedback.notificationOccurred(result.failed > 0 ? "warning" : "success");
+      telegram.showAlert(t.broadcast.result(result.sent, result.failed));
+      setText("");
+    },
+    onError: (err: any) => {
+      telegram.HapticFeedback.notificationOccurred("error");
+      telegram.showAlert(err?.response?.data?.error?.message ?? t.common.notSaved);
+    },
+  });
+
+  async function handleSend() {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      telegram.showAlert(t.broadcast.emptyText);
+      return;
+    }
+    const ok = await confirmDialog(t.broadcast.confirm);
+    if (ok) mutation.mutate();
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center gap-2 mb-2.5">
+        <div className="w-8 h-8 rounded-[9px] flex items-center justify-center bg-accentSoft text-accent flex-shrink-0">
+          <Megaphone size={15} strokeWidth={2} />
+        </div>
+        <p className="font-extrabold text-tg-text text-[13.5px]">{t.broadcast.title}</p>
+      </div>
+      <p className="text-[12px] font-medium text-tg-hint mb-2.5">{t.broadcast.hint}</p>
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={t.broadcast.placeholder}
+        rows={3}
+        maxLength={4000}
+        className="mb-2.5"
+      />
+      <Button onClick={handleSend} disabled={mutation.isPending || !text.trim()} className="w-full">
+        <span className="inline-flex items-center justify-center gap-1.5">
+          <Send size={14} strokeWidth={2.25} />
+          {mutation.isPending ? t.broadcast.sending : t.broadcast.send}
+        </span>
+      </Button>
+    </Card>
+  );
+}
+
 export function SuperadminDashboardPage() {
   const { t } = useI18n();
   const { data, isLoading } = useQuery({
@@ -37,6 +103,8 @@ export function SuperadminDashboardPage() {
 
   return (
     <div className="px-4 pt-2 pb-8 space-y-3">
+      <BroadcastCard />
+
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           label={t.dashboard.openRequests}
