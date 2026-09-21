@@ -225,8 +225,8 @@ export const notificationsService = {
     const BATCH_SIZE = 20;
     const BATCH_DELAY_MS = 1100; // Telegram: umumiy ~30 xabar/soniya limiti.
 
-    const users = await prisma.user.findMany({
-      where: { isActive: true, telegramId: { not: null } },
+        const users = await prisma.user.findMany({
+      where: { isActive: true },
       select: { id: true, telegramId: true },
     });
 
