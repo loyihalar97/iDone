@@ -210,4 +210,59 @@ export const notificationsService = {
       data: { isRead: true },
     });
   },
+
+  /**
+   * Superadmin panelidan BARCHA faol foydalanuvchilarning bot chatiga bir
+   * vaqtda oddiy e'lon yuboradi (masalan: texnik ishlar, umumiy ogohlantirish).
+   *
+   * Telegram Bot API bir vaqtda juda ko'p so'rovni yoqtirmaydi (429 xatosi
+   * berishi mumkin), shuning uchun barchasini bitta Promise.all bilan emas,
+   * kichik partiyalar (BATCH_SIZE) bilan, orada qisqa tanaffus bilan yuboramiz.
+   * Bitta foydalanuvchiga yuborib bo'lmasa (botni bloklagan va h.k.) qolganlar
+   * uchun jarayon davom etadi — faqat shu foydalanuvchi "failed" hisoblanadi.
+   */
+  async broadcastToAll(text: string, actorId: string) {
+    const BATCH_SIZE = 20;
+    const BATCH_DELAY_MS = 1100; // Telegram: umumiy ~30 xabar/soniya limiti.
+
+    const users = await prisma.user.findMany({
+      where: { isActive: true, telegramId: { not: null } },
+      select: { id: true, telegramId: true },
+    });
+
+    let sent = 0;
+    let failed = 0;
+
+    for (let i = 0; i < users.length; i += BATCH_SIZE) {
+      const batch = users.slice(i, i + BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map(async (user: { id: string; telegramId: string | null }) => {
+          await prisma.notification.create({
+            data: { userId: user.id, type: NotificationType.ANNOUNCEMENT, text },
+          });
+          await this.sendToTelegram(
+            { userId: user.id, type: NotificationType.ANNOUNCEMENT, text },
+            user.telegramId
+          );
+        })
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled") sent += 1;
+        else {
+          failed += 1;
+          logger.warn({ err: r.reason }, "E'lonni bitta foydalanuvchiga yuborib bo'lmadi");
+        }
+      }
+      if (i + BATCH_SIZE < users.length) {
+        await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+
+    logger.info(
+      { actorId, total: users.length, sent, failed },
+      "Superadmin barcha foydalanuvchilarga e'lon yubordi"
+    );
+
+    return { total: users.length, sent, failed };
+  },
 };
