@@ -218,4 +218,6 @@ export enum NotificationType {
   REQUEST_COMMENT = "request_comment",
   /** Zayavkaning muhimlik darajasi o'zgartirildi. */
   PRIORITY_CHANGED = "priority_changed",
+  /** Superadmin barcha faol foydalanuvchilarga yuborgan umumiy e'lon. */
+  ANNOUNCEMENT = "announcement",
 }
