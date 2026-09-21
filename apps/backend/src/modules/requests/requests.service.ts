@@ -677,6 +677,121 @@ export const requestsService = {
   },
 
   /**
+   * Bosh texnik tasdiqlagandan (APPROVED_BY_CHIEF_TECHNICIAN) so'ng
+   * `REQUEST_AUTO_CLOSE_DAYS` kun ichida mas'ul rahbar (Direktor va h.k.)
+   * uni qabul qilib yopmasa, tizim zayavkani AVTOMATIK yopadi.
+   *
+   * Bu funksiyani fon rejalashtiruvchisi (requests.auto-close.ts) chaqiradi.
+   * "Muddat tugadimi" — RequestStatusHistory'dagi shu zayavka uchun ENG
+   * OXIRGI yozuv (u albatta APPROVED_BY_CHIEF_TECHNICIAN'ga o'tish bo'ladi,
+   * chunki hozirgi status ham shu) qachon yozilganiga qarab aniqlanadi.
+   */
+  async autoCloseOverdue(now: Date = new Date()) {
+    if (!config.requestAutoCloseEnabled || config.requestAutoCloseDays < 0) {
+      return { checked: 0, closed: 0 };
+    }
+
+    const cutoff = new Date(now.getTime() - config.requestAutoCloseDays * 24 * 60 * 60 * 1000);
+
+    const pending = await prisma.request.findMany({
+      where: { status: PrismaRequestStatus.approved_by_chief_technician },
+      select: { id: true },
+    });
+
+    let closed = 0;
+
+    for (const { id } of pending) {
+      const lastChange = await prisma.requestStatusHistory.findFirst({
+        where: { requestId: id },
+        orderBy: { changedAt: "desc" },
+      });
+      // Ehtiyot chorasi: agar tarix yozuvi kutilganidek bo'lmasa (masalan hali
+      // hech qanday tarix yo'q — bo'lishi mumkin emas, lekin ma'lumot izchil
+      // bo'lmay qolgan holatlar uchun) — bu zayavkani o'tkazib yuboramiz.
+      if (!lastChange || lastChange.toStatus !== PrismaRequestStatus.approved_by_chief_technician) {
+        continue;
+      }
+      if (lastChange.changedAt > cutoff) continue; // muddat hali tugamagan
+
+      try {
+        await this.forceCloseOverdue(id);
+        closed += 1;
+      } catch (err) {
+        logger.warn({ err, requestId: id }, "Zayavkani avtomatik yopib bo'lmadi");
+      }
+    }
+
+    if (pending.length > 0) {
+      logger.info(
+        { checked: pending.length, closed },
+        "Muddati o'tgan zayavkalarni avtomatik yopish tekshiruvi"
+      );
+    }
+
+    return { checked: pending.length, closed };
+  },
+
+  /**
+   * Bitta zayavkani "Direktor muddatida qabul qilmadi" sababi bilan
+   * avtomatik yopadi. Odatiy qo'lda "qabul qilish" oqimi bilan bir xil
+   * status tarixini yozadi (APPROVED → ACCEPTED_BY_DIRECTOR → CLOSED),
+   * faqat "actor" sifatida zayavkani ochgan shaxs (odatda Direktor)
+   * ko'rsatiladi — chunki amal aslida ular NOMIDAN, ular o'rniga
+   * tizim tomonidan bajarilmoqda.
+   */
+  async forceCloseOverdue(requestId: string) {
+    const request = await requestsRepository.findById(requestId);
+    if (!request || request.status !== RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN) return;
+
+    const systemActorId = request.createdById;
+
+    await requestsRepository.updateStatus(requestId, PrismaRequestStatus.accepted_by_director, {
+      closedAt: new Date(),
+    });
+    await requestsRepository.addStatusHistory(
+      requestId,
+      RequestStatus.APPROVED_BY_CHIEF_TECHNICIAN as PrismaRequestStatus,
+      PrismaRequestStatus.accepted_by_director,
+      systemActorId
+    );
+    const finalRequest = await requestsRepository.updateStatus(requestId, PrismaRequestStatus.closed);
+    await requestsRepository.addStatusHistory(
+      requestId,
+      RequestStatus.ACCEPTED_BY_DIRECTOR as PrismaRequestStatus,
+      PrismaRequestStatus.closed,
+      systemActorId
+    );
+
+    await auditLogService.log({
+      entityType: "request",
+      entityId: requestId,
+      action: "status_changed_to_closed_auto",
+      performedById: systemActorId,
+    });
+
+    // Standart "zayavka yopildi" kartasi — zayavka egasi, bosh texnik va
+    // texnikka (rasmlar bilan) xuddi qo'lda yopilgandagidek boradi, shu
+    // jumladan rasmlarni tozalash ham (MEDIA_RETENTION_DAYS=0 bo'lsa).
+    await this.notifyOnStatusChange(finalRequest, RequestStatus.ACCEPTED_BY_DIRECTOR);
+
+    // Qo'shimcha, aynan Direktorga (zayavkani ochgan shaxsga): nega
+    // avtomatik yopilgani haqida alohida tushuntirish xabari.
+    const labelFor = await categoryLabeller();
+    await notificationsService.notify({
+      userId: request.createdById,
+      requestId: request.id,
+      type: NotificationType.AUTO_CLOSED,
+      html: true,
+      text: (lang) =>
+        t(lang).notify.autoClosedForDirector(
+          request.branch.name,
+          labelFor(request.category, lang),
+          config.requestAutoCloseDays
+        ),
+    });
+  },
+
+  /**
    * Zayavkalar tarixini PDF yoki XLSX faylga eksport qilib, foydalanuvchining
    * Telegram bot chatiga hujjat sifatida yuboradi. Ko'rish doirasi list()
    * bilan bir xil: Direktor/Filial menejeri — o'z filiali, Hududiy rahbar —

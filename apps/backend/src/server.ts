@@ -6,9 +6,11 @@ import { attachBot, stopBot } from "./modules/bot/bot";
 import { categoriesService } from "./modules/categories/categories.service";
 import { startMediaCleanupJob } from "./modules/media/media.cleanup";
 import { startReportScheduler } from "./modules/reports/reports.scheduler";
+import { startAutoCloseScheduler } from "./modules/requests/requests.auto-close";
 
 let mediaCleanupTimer: NodeJS.Timeout | null = null;
 let reportTimer: NodeJS.Timeout | null = null;
+let autoCloseTimer: NodeJS.Timeout | null = null;
 
 process.on("uncaughtException", (err) => {
   logger.error({ err }, "Uncaught exception - process is dying");
@@ -48,6 +50,10 @@ async function main() {
   // hisobotlarni yuboruvchi rejalashtiruvchi.
   reportTimer = startReportScheduler();
 
+  // Bosh texnik tasdiqlagandan so'ng muddatida (standart 2 kun) Direktor
+  // qabul qilib yopmagan zayavkalarni avtomatik yopuvchi rejalashtiruvchi.
+  autoCloseTimer = startAutoCloseScheduler();
+
   const server = app.listen(config.port, "0.0.0.0", () => {
     logger.info(`Backend server running on 0.0.0.0:${config.port} (${config.env})`);
   });
@@ -67,6 +73,7 @@ process.on("SIGTERM", async () => {
   stopBot();
   if (mediaCleanupTimer) clearInterval(mediaCleanupTimer);
   if (reportTimer) clearInterval(reportTimer);
+  if (autoCloseTimer) clearInterval(autoCloseTimer);
   await prisma.$disconnect();
   process.exit(0);
 });
@@ -75,6 +82,7 @@ process.on("SIGINT", async () => {
   stopBot();
   if (mediaCleanupTimer) clearInterval(mediaCleanupTimer);
   if (reportTimer) clearInterval(reportTimer);
+  if (autoCloseTimer) clearInterval(autoCloseTimer);
   await prisma.$disconnect();
   process.exit(0);
 });

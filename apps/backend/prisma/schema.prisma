@@ -54,6 +54,8 @@ enum NotificationType {
   request_closed
   request_comment
   priority_changed
+  announcement
+  auto_closed
 }
 
 model Branch {

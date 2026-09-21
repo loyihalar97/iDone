@@ -91,6 +91,8 @@ export interface Messages {
     completed: (technician: string, branch: string, category: string, expense: string | null) => string;
     chiefApproved: (branch: string, category: string) => string;
     closedForTechnician: (branch: string, category: string) => string;
+    /** Muddatida qabul qilinmagani sababli tizim avtomatik yopgan zayavka haqida Direktorga xabar. */
+    autoClosedForDirector: (branch: string, category: string, days: number) => string;
     /** Texnik ismi noma'lum bo'lganda. */
     someTechnician: string;
   };
@@ -210,6 +212,9 @@ const uz: Messages = {
     chiefApproved: (branch, category) =>
       `👍 Bosh texnik ishni tasdiqladi: ${branch}, "${category}". Qabul qilishingiz kerak.`,
     closedForTechnician: (branch, category) => `🔒 Zayavka yopildi: ${branch}, "${category}".`,
+    autoClosedForDirector: (branch, category, days) =>
+      `⏰ <b>Zayavka avtomatik yopildi:</b> ${branch}, "${category}".\n` +
+      `Bosh texnik tasdiqlagandan so'ng ${days} kun ichida qabul qilinmagani sababli tizim uni avtomatik yopdi.`,
     someTechnician: "Texnik",
   },
 
@@ -356,6 +361,9 @@ const ru: Messages = {
     chiefApproved: (branch, category) =>
       `👍 Главный техник подтвердил работу: ${branch}, "${category}". Вам нужно её принять.`,
     closedForTechnician: (branch, category) => `🔒 Заявка закрыта: ${branch}, "${category}".`,
+    autoClosedForDirector: (branch, category, days) =>
+      `⏰ <b>Заявка закрыта автоматически:</b> ${branch}, "${category}".\n` +
+      `Система закрыла её автоматически, так как в течение ${days} дней после подтверждения главным техником она не была принята.`,
     someTechnician: "Техник",
   },
 

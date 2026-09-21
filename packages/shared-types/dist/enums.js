@@ -209,4 +209,6 @@ var NotificationType;
     NotificationType["PRIORITY_CHANGED"] = "priority_changed";
     /** Superadmin barcha faol foydalanuvchilarga yuborgan umumiy e'lon. */
     NotificationType["ANNOUNCEMENT"] = "announcement";
+    /** Bosh texnik tasdiqlagandan keyin muddatida qabul qilinmagani sababli tizim avtomatik yopgan zayavka haqida xabar. */
+    NotificationType["AUTO_CLOSED"] = "auto_closed";
 })(NotificationType || (exports.NotificationType = NotificationType = {}));

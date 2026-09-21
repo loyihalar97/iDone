@@ -168,6 +168,18 @@ Bu sizning $5–10 byudjetingizga to'g'ri keladi. (Narxlar o'zgarishi mumkin —
   Vazifa bir vaqtning o'zida "yetim" fayllarni ham (rasm yuklanib, zayavka
   yuborilmagan holatlar) 24 soatdan keyin o'chiradi.
 
+- **Zayavkani avtomatik yopish.** Bosh texnik ishni tasdiqlagandan
+  (`APPROVED_BY_CHIEF_TECHNICIAN`) so'ng mas'ul rahbar (Direktor va h.k.)
+  belgilangan muddat ichida uni qabul qilib yopmasa, tizim zayavkani
+  o'zi yopadi va Direktorga (zayavkani ochgan shaxsga) bot orqali "muddat
+  o'tgani sababli avtomatik yopildi" degan alohida xabar yuboradi.
+
+  | O'zgaruvchi | Standart | Ma'nosi |
+  |---|---|---|
+  | `REQUEST_AUTO_CLOSE_ENABLED` | `true` | `false` qilinsa, avtomatik yopish butunlay o'chadi |
+  | `REQUEST_AUTO_CLOSE_DAYS` | `2` | Necha kundan keyin avtomatik yopilsin. `-1` — hech qachon |
+  | `REQUEST_AUTO_CLOSE_CHECK_INTERVAL_MINUTES` | `60` | Fon tekshiruvi necha daqiqada bir ishlaydi |
+
 - **Rasm hajmi va trafik.** Har bir rasm yuklanganda:
   1. **0.2 MB gacha siqiladi** (1280 px kenglik, JPEG) — 5 MB lik telefon
      surati odatda ~100–200 KB ga tushadi;

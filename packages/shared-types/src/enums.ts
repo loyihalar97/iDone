@@ -220,4 +220,6 @@ export enum NotificationType {
   PRIORITY_CHANGED = "priority_changed",
   /** Superadmin barcha faol foydalanuvchilarga yuborgan umumiy e'lon. */
   ANNOUNCEMENT = "announcement",
+  /** Bosh texnik tasdiqlagandan keyin muddatida qabul qilinmagani sababli tizim avtomatik yopgan zayavka haqida xabar. */
+  AUTO_CLOSED = "auto_closed",
 }

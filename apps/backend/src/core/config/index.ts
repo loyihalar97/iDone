@@ -91,6 +91,18 @@ export const config = {
   reportMaxCatchupHours: parseInt(process.env.REPORT_MAX_CATCHUP_HOURS ?? "72", 10),
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? "http://localhost:4000",
 
+  // --- Zayavkani avtomatik yopish (Direktor muddatida qabul qilmasa) -------
+  // Bosh texnik tasdiqlagandan (APPROVED_BY_CHIEF_TECHNICIAN) so'ng shuncha
+  // kun ichida Direktor (yoki mas'ul rahbar) qabul qilib yopmasa, tizim
+  // zayavkani AVTOMATIK yopadi va Direktorga bot orqali xabar beradi.
+  requestAutoCloseEnabled: (process.env.REQUEST_AUTO_CLOSE_ENABLED ?? "true") !== "false",
+  requestAutoCloseDays: parseInt(process.env.REQUEST_AUTO_CLOSE_DAYS ?? "2", 10),
+  // Rejalashtiruvchi necha daqiqada bir tekshiradi.
+  requestAutoCloseCheckIntervalMinutes: parseInt(
+    process.env.REQUEST_AUTO_CLOSE_CHECK_INTERVAL_MINUTES ?? "60",
+    10
+  ),
+
   supabaseUrl: process.env.SUPABASE_URL ?? "",
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY ?? "",
   supabaseBucket: process.env.SUPABASE_BUCKET ?? "request-media",
