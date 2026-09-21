@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Role } from "@app/shared-types";
 import { dashboardApi, notificationsApi } from "@/shared/api";
 import { Card, Spinner, Textarea, Button } from "@/shared/ui/primitives";
 import { LucideIcon, Inbox, Clock, CheckCircle2, CalendarCheck, Timer, Megaphone, Send } from "lucide-react";
 import { telegram, confirmDialog } from "@/shared/telegram/webapp";
 import { useI18n } from "@/shared/i18n";
+import { useAuth } from "@/shared/hooks/useAuth";
 
 function StatCard({
   label,
@@ -94,6 +96,7 @@ function BroadcastCard() {
 
 export function SuperadminDashboardPage() {
   const { t } = useI18n();
+  const { user } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: () => dashboardApi.stats().then((r) => r.data),
@@ -101,9 +104,15 @@ export function SuperadminDashboardPage() {
 
   if (isLoading || !data) return <Spinner label={t.dashboard.loading} />;
 
+  // "Barchaga xabar yuborish" (bot orqali) faqat SuperAdmin uchun ko'rinadi.
+  // Bu sahifa Direktor / Bosh texnik / Texnik / Menejer rollari uchun ham
+  // umumiy statistika ekrani sifatida qayta ishlatiladi, shuning uchun
+  // BroadcastCard shu yerda rolga qarab yashiriladi.
+  const isSuperAdmin = user?.role === Role.SUPERADMIN;
+
   return (
     <div className="px-4 pt-2 pb-8 space-y-3">
-      <BroadcastCard />
+      {isSuperAdmin && <BroadcastCard />}
 
       <div className="grid grid-cols-2 gap-3">
         <StatCard
