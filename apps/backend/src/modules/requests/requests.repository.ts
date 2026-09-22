@@ -7,6 +7,8 @@ export interface RequestFilters {
   /** Ruxsat etilgan filiallar ro'yxati (scope). Bo'sh massiv — hech narsa. */
   branchIds?: string[];
   status?: PrismaRequestStatus;
+  /** "Faol" chip — Yopilgan (CLOSED) dan boshqa barcha holatlar. `status` bilan birga kelmaydi. */
+  activeOnly?: boolean;
   priority?: string;
   category?: string;
   technicianId?: string;
@@ -66,7 +68,7 @@ function buildWhere(filters: RequestFilters): Prisma.RequestWhereInput {
 
   return {
     ...branchWhere,
-    status: filters.status,
+    status: filters.activeOnly ? { not: "closed" as PrismaRequestStatus } : filters.status,
     priority: filters.priority as any,
     category: filters.category as any,
     technicianId: filters.technicianId,

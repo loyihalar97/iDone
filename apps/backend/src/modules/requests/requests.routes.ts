@@ -33,6 +33,9 @@ requestsRouter.post(
 const listQuerySchema = z.object({
   branchId: z.string().uuid().optional(),
   status: z.nativeEnum(RequestStatus).optional(),
+  // "Faol" tez filtri: Yopilgan (CLOSED)dan boshqa barchasi. `status` bilan
+  // birga yuborilsa, repository qatlamida activeOnly ustunlik qiladi.
+  activeOnly: z.coerce.boolean().optional(),
   priority: z.nativeEnum(Priority).optional(),
   category: z.string().min(1).max(60).optional(),
   technicianId: z.string().uuid().optional(),
