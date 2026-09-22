@@ -13,7 +13,7 @@ export function LanguageSwitch() {
 
   return (
     <div
-      className="ml-auto flex items-center gap-0.5 bg-tg-secondaryBg border border-line rounded-pill p-0.5 flex-shrink-0"
+      className="flex items-center gap-0.5 bg-tg-secondaryBg border border-line rounded-pill p-0.5 flex-shrink-0"
       role="group"
       aria-label={LANGUAGE_LABELS[lang]}
     >

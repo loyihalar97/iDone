@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { LanguageSwitch } from "@/shared/ui/LanguageSwitch";
+import { ThemeToggle } from "@/shared/ui/ThemeToggle";
 
 export function Header({ title, showBack = false }: { title: string; showBack?: boolean }) {
   const navigate = useNavigate();
@@ -15,8 +16,11 @@ export function Header({ title, showBack = false }: { title: string; showBack?: 
         </button>
       )}
       <h1 className="font-extrabold text-tg-text text-[19px] tracking-tight2 truncate">{title}</h1>
-      {/* Til almashtirgichi — har bir ekranda qo'l ostida turadi. */}
-      <LanguageSwitch />
+      {/* Til va mavzu almashtirgichlari — har bir ekranda qo'l ostida turadi. */}
+      <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+        <LanguageSwitch />
+        <ThemeToggle />
+      </div>
     </header>
   );
 }

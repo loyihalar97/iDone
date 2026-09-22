@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./app/App";
 import { AuthProvider } from "./shared/hooks/useAuth";
+import { ThemeProvider } from "./shared/hooks/useTheme";
 import { I18nProvider } from "./shared/i18n";
 import { initTelegram } from "./shared/telegram/webapp";
 import "./index.css";
@@ -24,11 +25,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       {/* I18nProvider AuthProvider'dan tashqarida — chunki kirish
           xabarlari ham tanlangan tilda ko'rsatiladi. */}
-      <I18nProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </I18nProvider>
+      <ThemeProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </I18nProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );

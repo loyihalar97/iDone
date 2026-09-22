@@ -39,6 +39,8 @@ export interface RequestListResponse {
 export interface RequestFilters {
   branchId?: string;
   status?: RequestStatus;
+  /** "Faol" tez filtri: Yopilgan (CLOSED)dan boshqa barcha holatlar. */
+  activeOnly?: boolean;
   priority?: Priority;
   category?: string;
   technicianId?: string;

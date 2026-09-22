@@ -1,43 +1,49 @@
 /** @type {import('tailwindcss').Config} */
+function withOpacity(varName) {
+  return ({ opacityValue }) =>
+    opacityValue === undefined ? `rgb(var(${varName}))` : `rgb(var(${varName}) / ${opacityValue})`;
+}
+
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  darkMode: ["selector", '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
-        // Telegram WebApp CSS o'zgaruvchilariga bog'langan — foydalanuvchining
-        // Telegram mavzusiga (light/dark) avtomatik moslashadi. Fallback qiymatlar
-        // yangi dizayn tizimining aksent rangiga (#2F5AF5, indigo ko'k) moslangan —
-        // bitta aksent rang va neytral kulrang shkala, minimalizm uchun.
+        // Barchasi CSS o'zgaruvchilariga (RGB triplet) bog'langan — shu orqali
+        // light/dark mavzular va Tailwind'ning opacity modifikatorlari (/10, /40...)
+        // bir vaqtda ishlaydi. Qiymatlar src/index.css'da :root va
+        // [data-theme="dark"] ostida e'lon qilingan.
         tg: {
-          bg: "var(--tg-theme-bg-color, #ffffff)",
-          secondaryBg: "var(--tg-theme-secondary-bg-color, #F4F5F7)",
-          text: "var(--tg-theme-text-color, #12141C)",
-          hint: "var(--tg-theme-hint-color, #767C88)",
-          link: "var(--tg-theme-link-color, #2F5AF5)",
-          button: "var(--tg-theme-button-color, #2F5AF5)",
-          buttonText: "var(--tg-theme-button-text-color, #ffffff)",
+          bg: withOpacity("--color-surface"),
+          secondaryBg: withOpacity("--color-page-bg"),
+          text: withOpacity("--color-ink"),
+          hint: withOpacity("--color-ink-soft"),
+          link: withOpacity("--color-accent"),
+          button: withOpacity("--color-accent"),
+          buttonText: withOpacity("--color-on-accent"),
         },
-        line: "#E7E8EC",
-        lineStrong: "#D7D9E0",
-        ink: "#12141C",
-        inkSoft: "#666C7A",
-        inkFaint: "#9AA0AC",
-        accent: "#2F5AF5",
-        accentSoft: "#EBEFFF",
-        accentDark: "#1C3BC7",
+        line: withOpacity("--color-line"),
+        lineStrong: withOpacity("--color-line-strong"),
+        ink: withOpacity("--color-ink"),
+        inkSoft: withOpacity("--color-ink-soft"),
+        inkFaint: withOpacity("--color-ink-faint"),
+        accent: withOpacity("--color-accent"),
+        accentSoft: withOpacity("--color-accent-soft"),
+        accentDark: withOpacity("--color-accent-dark"),
         priority: {
-          low: "#767C88",
-          medium: "#2F5AF5",
-          high: "#C77700",
-          critical: "#D42B2B",
+          low: withOpacity("--color-priority-low"),
+          medium: withOpacity("--color-priority-medium"),
+          high: withOpacity("--color-priority-high"),
+          critical: withOpacity("--color-priority-critical"),
         },
         status: {
-          new: "#2F5AF5",
-          progress: "#C77700",
-          techDone: "#7C5CFF",
-          chiefApproved: "#0E9F87",
-          directorAccepted: "#16915A",
-          closed: "#767C88",
+          new: withOpacity("--color-status-new"),
+          progress: withOpacity("--color-status-progress"),
+          techDone: withOpacity("--color-status-tech-done"),
+          chiefApproved: withOpacity("--color-status-chief-approved"),
+          directorAccepted: withOpacity("--color-status-director-accepted"),
+          closed: withOpacity("--color-status-closed"),
         },
       },
       fontFamily: {
@@ -50,9 +56,9 @@ export default {
         pill: "999px",
       },
       boxShadow: {
-        card: "0 1px 2px 0 rgb(18 20 28 / 0.04), 0 1px 1px 0 rgb(18 20 28 / 0.03)",
-        accent: "0 8px 20px -8px rgb(47 90 245 / 0.45)",
-        float: "0 8px 24px 0 rgb(18 20 28 / 0.10)",
+        card: "0 1px 2px 0 rgb(0 0 0 / 0.04), 0 10px 24px -14px rgb(0 0 0 / 0.14)",
+        accent: "0 8px 20px -8px rgb(var(--color-accent) / 0.45)",
+        float: "0 8px 24px 0 rgb(0 0 0 / 0.12)",
       },
       letterSpacing: {
         tight2: "-0.01em",

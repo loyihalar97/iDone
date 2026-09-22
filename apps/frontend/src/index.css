@@ -6,13 +6,78 @@ html, body, #root {
   height: 100%;
 }
 
+/*
+ * Dizayn tokenlari — RGB triplet sifatida ("R G B", probel bilan), shunda
+ * Tailwind rang funksiyalari (masalan bg-accent/10) ustidan opacity
+ * modifikatorlari to'g'ri ishlaydi. `[data-theme="dark"]` <html> elementiga
+ * useTheme hook orqali qo'yiladi (shared/hooks/useTheme.tsx).
+ */
+:root {
+  color-scheme: light;
+  --color-page-bg: 244 245 247;   /* #F4F5F7 — sahifa foni */
+  --color-surface: 255 255 255;   /* #FFFFFF — kartochka foni */
+  --color-ink: 18 20 28;          /* #12141C */
+  --color-ink-soft: 102 108 122;  /* #666C7A */
+  --color-ink-faint: 154 160 172; /* #9AA0AC */
+  --color-on-accent: 255 255 255;
+
+  --color-line: 231 232 236;      /* #E7E8EC */
+  --color-line-strong: 215 217 224; /* #D7D9E0 */
+
+  --color-accent: 47 90 245;      /* #2F5AF5 */
+  --color-accent-soft: 235 239 255; /* #EBEFFF */
+  --color-accent-dark: 28 59 199; /* #1C3BC7 */
+
+  --color-priority-low: 118 124 136;      /* #767C88 */
+  --color-priority-medium: 47 90 245;     /* #2F5AF5 */
+  --color-priority-high: 199 119 0;       /* #C77700 */
+  --color-priority-critical: 212 43 43;   /* #D42B2B */
+
+  --color-status-new: 47 90 245;              /* #2F5AF5 */
+  --color-status-progress: 199 119 0;         /* #C77700 */
+  --color-status-tech-done: 124 92 255;       /* #7C5CFF */
+  --color-status-chief-approved: 14 159 135;  /* #0E9F87 */
+  --color-status-director-accepted: 22 145 90;/* #16915A */
+  --color-status-closed: 118 124 136;         /* #767C88 */
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-page-bg: 16 18 24;      /* #101218 */
+  --color-surface: 26 29 38;      /* #1A1D26 */
+  --color-ink: 242 243 247;       /* #F2F3F7 */
+  --color-ink-soft: 155 160 175;  /* #9BA0AF */
+  --color-ink-faint: 106 111 126; /* #6A6F7E */
+  --color-on-accent: 255 255 255;
+
+  --color-line: 42 45 56;         /* #2A2D38 */
+  --color-line-strong: 58 62 76;  /* #3A3E4C */
+
+  --color-accent: 92 130 255;     /* #5C82FF */
+  --color-accent-soft: 35 41 74;  /* #23294A */
+  --color-accent-dark: 169 188 255; /* #A9BCFF */
+
+  --color-priority-low: 139 144 158;      /* #8B909E */
+  --color-priority-medium: 92 130 255;    /* #5C82FF */
+  --color-priority-high: 227 169 74;      /* #E3A94A */
+  --color-priority-critical: 255 107 107; /* #FF6B6B */
+
+  --color-status-new: 92 130 255;              /* #5C82FF */
+  --color-status-progress: 227 169 74;         /* #E3A94A */
+  --color-status-tech-done: 164 140 255;       /* #A48CFF */
+  --color-status-chief-approved: 63 203 177;   /* #3FCBB1 */
+  --color-status-director-accepted: 79 206 139;/* #4FCE8B */
+  --color-status-closed: 139 144 158;          /* #8B909E */
+}
+
 body {
-  background-color: var(--tg-theme-secondary-bg-color, #F4F5F7);
-  color: var(--tg-theme-text-color, #12141C);
+  background-color: rgb(var(--color-page-bg));
+  color: rgb(var(--color-ink));
   font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.01em;
+  transition: background-color .2s ease, color .2s ease;
 }
 
 /* Raqamlar, ID va statistika qiymatlari uchun texnik, aniq shrift */
@@ -45,10 +110,10 @@ svg {
 }
 
 :focus-visible {
-  outline: 2px solid var(--tg-theme-link-color, #2F5AF5);
+  outline: 2px solid rgb(var(--color-accent));
   outline-offset: 2px;
 }
 
 ::selection {
-  background-color: #DCE4FF;
+  background-color: rgb(var(--color-accent-soft));
 }

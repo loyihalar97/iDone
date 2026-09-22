@@ -17,9 +17,10 @@ interface Props {
   showPeopleFilters?: boolean;
 }
 
-/** Tez filtr chiplarida ko'rsatiladigan holatlar. */
-const CHIP_STATUSES: (RequestStatus | undefined)[] = [
+/** Tez filtr chiplarida ko'rsatiladigan holatlar. `null` — "Faol" (Yopilgandan boshqa hammasi). */
+const CHIP_STATUSES: (RequestStatus | undefined | null)[] = [
   undefined,
+  null,
   RequestStatus.NEW,
   RequestStatus.IN_PROGRESS,
   RequestStatus.CLOSED,
@@ -77,12 +78,20 @@ export function RequestFiltersBar({ filters, onChange, showPeopleFilters = false
       <div className="px-4 flex items-center gap-2">
         <div className="flex-1 flex gap-0.5 bg-tg-secondaryBg border border-line rounded-control p-1 overflow-x-auto no-scrollbar">
           {CHIP_STATUSES.map((chipStatus) => {
-            const isActive = filters.status === chipStatus;
-            const label = chipStatus ? statusText(chipStatus) : t.common.all;
+            // undefined -> "Barchasi", null -> "Faol" (activeOnly), qolganlari -> aniq holat.
+            const isActive =
+              chipStatus === null ? !!filters.activeOnly && !filters.status : filters.status === chipStatus && !filters.activeOnly;
+            const label = chipStatus === undefined ? t.common.all : chipStatus === null ? t.common.active : statusText(chipStatus);
             return (
               <button
                 key={label}
-                onClick={() => onChange({ ...filters, status: chipStatus })}
+                onClick={() =>
+                  onChange({
+                    ...filters,
+                    status: chipStatus ?? undefined,
+                    activeOnly: chipStatus === null ? true : undefined,
+                  })
+                }
                 className={`flex-1 flex-shrink-0 whitespace-nowrap text-[12.5px] font-bold px-3 py-2 rounded-[9px] transition ${
                   isActive ? "bg-tg-text text-tg-bg" : "text-inkSoft"
                 }`}
@@ -112,7 +121,9 @@ export function RequestFiltersBar({ filters, onChange, showPeopleFilters = false
         <div className="px-4 pt-2 flex gap-2 overflow-x-auto no-scrollbar">
           <Select
             value={filters.status ?? ""}
-            onChange={(e) => onChange({ ...filters, status: (e.target.value || undefined) as RequestStatus })}
+            onChange={(e) =>
+              onChange({ ...filters, status: (e.target.value || undefined) as RequestStatus, activeOnly: undefined })
+            }
             className={pill}
           >
             <option value="">{t.filters.allStatuses}</option>
