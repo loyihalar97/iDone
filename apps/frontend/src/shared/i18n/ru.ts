@@ -191,6 +191,7 @@ export const ru: Dictionary = {
   technicians: {
     emptyTitle: "Техников нет",
     emptySubtitle: "Появятся здесь, когда суперадмин назначит роль техника",
+    loadError: "Не удалось загрузить список техников",
     allBranches: "Все филиалы",
     new: "Новые",
     inProgress: "В процессе",
