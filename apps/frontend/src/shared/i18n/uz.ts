@@ -191,6 +191,7 @@ export const uz = {
   technicians: {
     emptyTitle: "Texniklar yo'q",
     emptySubtitle: "Superadmin texnik rolini tayinlaganda shu yerda ko'rinadi",
+    loadError: "Texniklar ro'yxatini yuklab bo'lmadi",
     allBranches: "Barcha filiallar",
     new: "Yangi",
     inProgress: "Jarayonda",
