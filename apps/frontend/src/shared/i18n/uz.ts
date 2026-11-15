@@ -149,6 +149,8 @@ export const uz = {
     assignTechnician: "Texnikni biriktirish",
     changeTechnician: "Texnikni o'zgartirish",
     pickTechnician: "Texnikni tanlang",
+    techniciansLoadError: "Texniklar ro'yxatini yuklab bo'lmadi",
+    noTechnicians: "Faol texniklar topilmadi (Xodimlar bo'limida rol va holatni tekshiring)",
     self: " (o'zim)",
     chiefSuffix: " (bosh texnik)",
     assign: "Biriktirish",
