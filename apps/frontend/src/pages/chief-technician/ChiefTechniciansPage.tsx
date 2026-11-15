@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Role } from "@app/shared-types";
 import { usersApi } from "@/shared/api";
-import { Card, Spinner, EmptyState, StatusPill } from "@/shared/ui/primitives";
+import { Button, Card, Spinner, EmptyState, StatusPill } from "@/shared/ui/primitives";
 import { Users } from "lucide-react";
 import { useI18n } from "@/shared/i18n";
 
@@ -11,7 +11,7 @@ import { useI18n } from "@/shared/i18n";
  */
 export function ChiefTechniciansPage() {
   const { t, roleText } = useI18n();
-  const { data: technicians, isLoading } = useQuery({
+  const { data: technicians, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["technicians-overview"],
     queryFn: () => usersApi.techniciansOverview().then((r) => r.data),
     // Nazorat sahifasi fonda yangilanadi. Ilgari har 30 soniyada so'rov
@@ -25,6 +25,25 @@ export function ChiefTechniciansPage() {
   });
 
   if (isLoading) return <Spinner label={t.common.loading} />;
+
+  // Ilgari server xatosi (403/404/500) ham "Texniklar yo'q" bo'lib ko'rinardi
+  // va haqiqiy sabab yashirinib qolardi. Endi xato alohida ko'rsatiladi.
+  if (isError) {
+    const status = (error as any)?.response?.status;
+    const detail =
+      (error as any)?.response?.data?.error?.message ??
+      (error as any)?.message ??
+      "";
+    return (
+      <div className="px-4 pt-10 text-center space-y-3">
+        <p className="text-tg-text font-extrabold text-[15px]">{t.technicians.loadError}</p>
+        <p className="text-tg-hint text-[12.5px] break-words">
+          {status ? `HTTP ${status}` : ""} {String(detail)}
+        </p>
+        <Button onClick={() => refetch()}>{t.common.retry}</Button>
+      </div>
+    );
+  }
   if (!technicians || technicians.length === 0)
     return (
       <EmptyState
