@@ -51,7 +51,12 @@ export function RequestDetailPage() {
 
   const isChief = user?.role === Role.CHIEF_TECHNICIAN;
 
-  const { data: technicians } = useQuery({
+  const {
+    data: technicians,
+    isLoading: techniciansLoading,
+    isError: techniciansError,
+    error: techniciansErr,
+  } = useQuery({
     queryKey: ["technicians", request?.branchId],
     queryFn: () => usersApi.technicians(request?.branchId).then((r) => r.data),
     enabled: isChief && !!request,
@@ -298,6 +303,17 @@ export function RequestDetailPage() {
               </option>
             ))}
           </Select>
+          {techniciansError && (
+            <p className="text-[12px] text-red-600 mb-3 break-words">
+              {t.detail.techniciansLoadError}
+              {(techniciansErr as any)?.response?.status
+                ? ` (HTTP ${(techniciansErr as any).response.status})`
+                : ""}
+            </p>
+          )}
+          {!techniciansLoading && !techniciansError && (technicians?.length ?? 0) === 0 && (
+            <p className="text-[12px] text-tg-hint mb-3">{t.detail.noTechnicians}</p>
+          )}
           <Button
             icon={request.technician ? Repeat : UserPlus}
             className="w-full"
