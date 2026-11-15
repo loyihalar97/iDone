@@ -149,6 +149,8 @@ export const ru: Dictionary = {
     assignTechnician: "Назначить техника",
     changeTechnician: "Сменить техника",
     pickTechnician: "Выберите техника",
+    techniciansLoadError: "Не удалось загрузить список техников",
+    noTechnicians: "Активные техники не найдены (проверьте роль и статус в разделе «Сотрудники»)",
     self: " (я сам)",
     chiefSuffix: " (главный техник)",
     assign: "Назначить",
