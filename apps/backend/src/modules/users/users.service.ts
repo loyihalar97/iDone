@@ -175,18 +175,25 @@ export const usersService = {
    * BOSH TEXNIKLAR ham qaytariladi — bosh texnik ishni o'ziga (yoki boshqa
    * bosh texnikka) biriktira olishi kerak.
    */
-  listTechnicians(branchId?: string) {
-    return prisma.user.findMany({
+  async listTechnicians(branchId?: string) {
+    const users = await prisma.user.findMany({
       where: {
         role: { in: [Role.TECHNICIAN, Role.CHIEF_TECHNICIAN] as any },
         isActive: true,
-        // branchId berilsa — shu filial texniklari + barcha filiallarga
-        // biriktirilgan (branchId = null) texniklar qaytariladi.
-        ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
       },
       select: { id: true, fullName: true, branchId: true, role: true },
       orderBy: [{ role: "asc" }, { fullName: "asc" }],
     });
+
+    // Ilgari faqat zayavka filialidagi (yoki filialsiz) texniklar qaytarilardi,
+    // shuning uchun boshqa filialga biriktirilgan texniklar Bosh texnik
+    // ro'yxatida ko'rinmasdi. Endi BARCHA faol texniklar qaytariladi
+    // (Bosh texnik ishni istalgan texnikka biriktira oladi); zayavka filialidagi
+    // va "barcha filiallar" texniklari ro'yxat boshida turadi.
+    if (!branchId) return users;
+    const rank = (u: { branchId: string | null }) =>
+      u.branchId === branchId || u.branchId === null ? 0 : 1;
+    return [...users].sort((a, b) => rank(a) - rank(b));
   },
 
   /**
